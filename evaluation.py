@@ -1,5 +1,5 @@
 from model import *
-from train import miniCOCO_vocabulary
+#from train import miniCOCO_vocabulary
 import matplotlib.pyplot as plt
 import skimage.io as io
 

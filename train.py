@@ -1,6 +1,6 @@
-import nltk
-import csv
-from data.preprocess_captions import Vocabulary, preprocess_caption_for_decoder
+from config import csv_train_path, train_root_dir
+from preprocess import miniCOCO_vocabulary
+from preprocess import preprocess_caption_for_decoder
 import torch
 import pandas as pd
 from skimage import io
@@ -54,8 +54,6 @@ class miniCOCODataset(Dataset):
         return transformed_image, input_caption, length, target
 
 
-
-
 if __name__ == "__main__":
     # Make train miniCOCO Dataset
     train_miniCOCO_dataset = miniCOCODataset(csv_file=csv_train_path,
@@ -80,7 +78,6 @@ if __name__ == "__main__":
                                      num_workers=4)
 
     vocab_size = len(miniCOCO_vocabulary)
-    print(f'{vocab_size=}')
 
     loss_track = []
     # Build the models

@@ -1,5 +1,6 @@
 from config import csv_train_path, train_root_dir
-from preprocess import miniCOCO_vocabulary
+import nltk
+import csv
 from preprocess import preprocess_caption_for_decoder
 import torch
 import pandas as pd
@@ -7,6 +8,7 @@ from skimage import io
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from model import EncoderCNN, DecoderRNN
+from preprocess import Vocabulary
 
 
 class miniCOCODataset(Dataset):
@@ -55,6 +57,21 @@ class miniCOCODataset(Dataset):
 
 
 if __name__ == "__main__":
+    # Preprocess captions
+    # Make a list of all train captions
+    train_captions = []
+    with open(csv_train_path, newline='', encoding='utf-8') as csvfile:
+        reader = csv.reader(csvfile)
+        next(reader)  # Skip header
+        for row in reader:
+            train_captions.extend(row[1:6])
+    # Tokenize train captions
+    tokenized_captions = [nltk.word_tokenize(s.lower()) for s in train_captions]
+
+    # Make vocabulary out of train captions
+    miniCOCO_vocabulary = Vocabulary(freq_threshold=1)
+    miniCOCO_vocabulary.build_vocabulary(sentences_list=tokenized_captions)
+
     # Make train miniCOCO Dataset
     train_miniCOCO_dataset = miniCOCODataset(csv_file=csv_train_path,
                                              root_dir=train_root_dir,
@@ -94,7 +111,6 @@ if __name__ == "__main__":
                                                                 # one word at a time
     params = list(decoder.parameters()) + list(encoder.linear.parameters()) + list(encoder.bn.parameters())
     optimizer = torch.optim.Adam(params, lr=learning_rate)
-
 
     # Train the models
     total_step = len(train_miniCOCO_dataset)

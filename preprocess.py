@@ -1,7 +1,5 @@
 import nltk
 import torch
-import csv
-from config import csv_train_path
 
 
 class Vocabulary:
@@ -126,21 +124,4 @@ def preprocess_caption_for_decoder(raw_caption, vocab):
     lengths_tensor = torch.tensor(length_for_packing, dtype=torch.long)  # Use the N+2 lengths
 
     return captions_input_tensor, lengths_tensor, targets_tensor
-
-
-if __name__ == '__main__':
-    # Preprocess captions
-    # Make a list of all train captions
-    train_captions = []
-    with open(csv_train_path, newline='', encoding='utf-8') as csvfile:
-        reader = csv.reader(csvfile)
-        next(reader)  # Skip header
-        for row in reader:
-            train_captions.extend(row[1:6])
-    # Tokenize train captions
-    tokenized_captions = [nltk.word_tokenize(s.lower()) for s in train_captions]
-
-    # Make vocabulary out of train captions
-    miniCOCO_vocabulary = Vocabulary(freq_threshold=1)
-    miniCOCO_vocabulary.build_vocabulary(sentences_list=tokenized_captions)
 

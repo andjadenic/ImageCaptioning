@@ -8,9 +8,11 @@ from PIL import Image
 
 class EncoderCNN(nn.Module):
     def __init__(self, feature_size):
-        """Load the pretrained ResNet-152 and replace top fc layer
+        """Load the pretrained ResNet-152 and replace top fully connected layer
+           so that ResNet's output has specific size of feature_size.
+           Encoder = ResNet + fc linear layer + batch norm layer
         Args:
-            feature_size: size of the output feature map
+            feature_size: size of the encoder's output (feature) vector
         """
         super(EncoderCNN, self).__init__()
         resnet = models.resnet152(weights='ResNet152_Weights.DEFAULT')
@@ -27,7 +29,7 @@ class EncoderCNN(nn.Module):
             param.requires_grad = False
 
     def forward(self, images):
-        """Extract feature vectors from input images."""
+        """Extract feature vectors from input images"""
         features = self.resnet(images)  # size = (batch_size, 2048, 1, 1) tensor
         features = features.reshape(features.size(0), -1)  # size = (batch_size, 2048) tensor
         features = self.bn(self.linear(features))  # size = (batch_size, feature_size) tensor
@@ -39,11 +41,12 @@ class DecoderRNN(nn.Module):
     def __init__(self, embed_size, hidden_size, vocab_size, num_layers, max_seq_length=30):
         """
         INPUTS:
-        :param embed_size: word space dimension, this is an input size of LSTM block
-        :param hidden_size: size of hidden and cell states
+        :param embed_size: word space size, this is an input size of LSTM block
+                           embed_size is equal to feature_size because Encoder(image) and Embedding(word) belong to the same space
+        :param hidden_size: size of hidden and cell states in LSTM block
         :param vocab_size: number of words in vocabulary
         :param num_layers: number of stacked LSTM blocks
-        :param max_seq_length: maximum length of a sequence
+        :param max_seq_length: maximum length of a caption sequence
         """
         super(DecoderRNN, self).__init__()
         self.embed = nn.Embedding(vocab_size, embed_size)  # Embedding layer takes indexed sentence and outputs its embedding
@@ -67,11 +70,11 @@ class DecoderRNN(nn.Module):
         """
         embeddings = self.embed(input_captions)  # embedded representations of the current batch of input captions
                                                  # embeddings.shape = (batch_size, max_seq_len, embed_size)
-        # featute_maps.size = (Nb, embed_size)
+        # feature_maps.size = (Nb, embed_size)
         embeddings = torch.cat((feature_maps.unsqueeze(1), embeddings), 1)  # feature_maps are concatenated to embeddings
                                                                                         # embeddings.size = (Nb, max_seq_len + 1, embed_size)
-                                                                                        # embedding = [feature_map, <start>, w1, w2, ..., wN, <pad>, ..., <pad>]
-        # Both the image and the words are mapped to the same space, the image by using the encoder (CNN, ResNet + fcl),
+                                                                                        # embeddings = [feature_map, <start>, w1, w2, ..., wN, <pad>, ..., <pad>]
+        # Both the image and the words are mapped to the same space, the image by using the encoder (ResNet + fcl + bnl),
         # the words by using word embedding We (fcl).
         # The image I is only input once, at t = −1, to inform the LSTM about the image contents threw input x_-1.
         # source: https://arxiv.org/pdf/1411.4555
@@ -81,7 +84,7 @@ class DecoderRNN(nn.Module):
         # Pass through the LSTM
         # The hidden state and cell state are initialized to zeros by default if not provided.
         h, _ = self.lstm(embeddings)  # h.shape = (Nb, 1 + max_seq_length, hidden_size)
-
+            # h contains the hidden states (h_t) from the last layer of the LSTM, for each t.
         # Pass the LSTM outputs h through the linear layer to get vocabulary scores
         outputs = self.linear(h)  # outputs.size = (Nb, 1 + max_seq_length, vocab_size)
 

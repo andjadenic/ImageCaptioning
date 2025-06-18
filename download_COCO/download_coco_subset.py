@@ -1,32 +1,33 @@
 '''
-Script downloads N_train=100 random images from 2017 Train COCO dataset
-and N_val=20 random images from 2017 Val COCO dataset
-and save their captions in separate files 'miniCOCO/train_captions.csv' and 'miniCOCO/val_captions.csv'
+Script downloads N_train random images from 2017 Train COCO dataset
+and N_val random images from 2017 Val COCO dataset
+and save their captions in separate files train_captions_path and val_captions_path
 using Python API for COCO dataset pycocotools and json files:
-'download_COCO_subset/captions_train2017.json' and 'download_COCO_subset/captions_val2017.json'
+download_COCO_captions_train2017_json and download_COCO_captions_val2017_json
 downloaded from official COCO website: https://cocodataset.org/#download
 '''
 
-
+import os
 from pycocotools.coco import COCO
 import numpy as np
 import csv
+from config import *
 
 
 # download N_train random images from 2017 train COCO dataset
-path_ann_train = f'download_COCO_subset/captions_train2017.json'
-dir_img_train = f'miniCOCO/train'
+path_ann_train = download_COCO_captions_train2017_json
+dir_img_train = train_data_path
 
 coco_train = COCO(path_ann_train)
 list_of_all_ids = list(coco_train.imgs.keys())
 
 # Create CSV file for train images captions
-with open('../miniCOCO/train_captions.csv', mode='w', newline='') as file:
+with open(csv_train_path, mode='w', newline='') as file:
     writer = csv.writer(file)
     writer.writerow(['img_name', 'caption1', 'caption2', 'caption3', 'caption4', 'caption5'])  # Write a header
 
 # Download N_train images
-N_train = 100
+N_train = 10000
 rand_nums = np.random.randint(1, len(list_of_all_ids), N_train)  # generates N_train random numbers
 for n in rand_nums:
     curr_id = list_of_all_ids[n]  # current id
@@ -41,7 +42,7 @@ for n in rand_nums:
     for i in range(5):
         curr_captions_list.append(curr_anns[i]['caption'].rstrip('. '))
 
-    with open('../miniCOCO/train_captions.csv', mode='a', newline='') as file:
+    with open(csv_train_path, mode='a', newline='') as file:
         writer = csv.writer(file)
         writer.writerow([curr_name,
                          curr_captions_list[0],
@@ -50,9 +51,9 @@ for n in rand_nums:
                          curr_captions_list[3],
                          curr_captions_list[4]])
 
-
+'''
 # download N_val random images from 2017 Val COCO dataset
-path_ann_val = f'download_COCO_subset/captions_val2017.json'
+path_ann_val = f'download_COCO/captions_val2017.json'
 dir_img_val = f'miniCOCO/val'
 
 coco_val = COCO(path_ann_val)
@@ -87,3 +88,4 @@ for n in rand_nums:
                          curr_captions_list[2],
                          curr_captions_list[3],
                          curr_captions_list[4]])
+'''

@@ -1,14 +1,18 @@
 # File with all hyperparameters and paths
 
 # Paths
-csv_train_path = f'data/miniCOCO/train_captions.csv'
-train_root_dir = f'data/miniCOCO/train/'
+download_COCO_captions_train2017_json = r'C:\Users\csuser\Documents\andja_denic\ImageCaptioning\download_COCO\captions_train2017.json'
+train_data_path = r'C:\Users\csuser\Documents\andja_denic\ImageCaptioning\data\train_data'
+csv_train_path = r'C:\Users\csuser\Documents\andja_denic\ImageCaptioning\data\train_data\train_captions.csv'
 
 
 # Hyperparameters
+feature_size = 512  # size of a feature (context) vector that is encoder's output
 
 # Text preprocessing
-embed_size =
+embed_size = feature_size
+#vocab_size =
+#max_seq_length
 
 # LSTM
 input_size = embed_size

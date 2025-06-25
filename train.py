@@ -1,4 +1,4 @@
-from config import csv_train_path, train_root_dir
+from config import csv_train_path, train_data_path
 import nltk
 import csv
 from preprocess import preprocess_caption_for_decoder

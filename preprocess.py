@@ -1,11 +1,12 @@
 import nltk
 import torch
+import json
+import string
+from config import train_annFile
 
 
 class Vocabulary:
-    def __init__(self, freq_threshold=1):
-        '''Initialize mappings and special tokens
-        :param freq_threshold: only add words appearing >= freq_threshold'''
+    def __init__(self):
         self.word2idx = {}
         self.idx2word = {}
         self.idx = 0
@@ -15,15 +16,12 @@ class Vocabulary:
         self.end_token = '<END>'
         self.unk_token = '<UNK>'
 
-        self.pad_idx = self.add_word(self.pad_token)  # Usually 0
-        self.start_idx = self.add_word(self.start_token)  # Usually 1
-        self.end_idx = self.add_word(self.end_token)  # Usually 2
-        self.unk_idx = self.add_word(self.unk_token)  # Usually 3
+        self.pad_idx = self.add_word(self.pad_token)  # id(<PAD>) = 0
+        self.start_idx = self.add_word(self.start_token)  # id(<START>) = 1
+        self.end_idx = self.add_word(self.end_token)  # id(<END>) = 2
+        self.unk_idx = self.add_word(self.unk_token)  # id(<UNK>) = 3
 
-        self.freq_threshold = freq_threshold
-        self.word_freq = {}  # Frequency of each word in vocabulary in dataset
-
-        self.max_caption_len = 0
+        self.L = 0  # Maximum length of a caption
 
     def add_word(self, word):
         '''Adds a word to the vocabulary
@@ -35,22 +33,38 @@ class Vocabulary:
             return self.idx - 1  # Return the index assigned
         return self.word2idx[word]  # Return existing index
 
-    def build_vocabulary(self, sentences_list):
-        '''Builds the vocabulary from a list of tokenized sentences'''
+    def build_vocabulary(self, json_path):
+        '''Builds the vocabulary from provided .json annotations'''
         print('Building vocabulary...')
-        for curr_sequence in sentences_list:
 
-            # Keep track of the length of the longest caption
-            if len(curr_sequence) > self.max_caption_len:
-                self.max_caption_len = len(curr_sequence)
+        print(f"Loading annotations from {json_path}...")
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        print("Annotations loaded.")
 
-            for curr_token in curr_sequence:
-                self.word_freq[curr_token] = self.word_freq.get(curr_token, 0) + 1
+        all_captions = [ann['caption'] for ann in data['annotations']]
+        print(f"Extracted {len(all_captions)} captions.")
 
-        initial_special_tokens = {self.pad_token, self.start_token, self.end_token, self.unk_token}
-        for curr_token, curr_freq in self.word_freq.items():
-            if curr_freq >= self.freq_threshold and curr_token not in initial_special_tokens:
-                self.add_word(curr_token)
+        # Preprocessing: Lowercase and remove punctuation
+        print("Preprocessing captions (lowercasing and removing punctuation)...")
+        translator = str.maketrans('', '', string.punctuation)
+        processed_captions = (caption.lower().translate(translator) for caption in all_captions)
+
+        # Tokenize captions and keep track of length of the longest caption
+        tokenized_captions = []
+        L = 0
+        for caption in processed_captions:
+            tokenized_caption = nltk.tokenize.word_tokenize(caption)
+            tokenized_captions.append(tokenized_caption)
+            if len(tokenized_caption) > L:
+                L = len(tokenized_caption)
+        self.L = L
+
+        # Add all words to the vocabulary
+        for caption in tokenized_captions:
+            for token in caption:
+                self.add_word(token)
+
         print(f'Vocabulary built with {len(self)} words.')
 
     def __call__(self, word):
@@ -60,6 +74,7 @@ class Vocabulary:
     def __len__(self):
         '''Returns the total size of the vocabulary.'''
         return len(self.word2idx)
+
 
 
 def preprocess_caption_for_decoder(raw_caption, vocab):
@@ -125,3 +140,10 @@ def preprocess_caption_for_decoder(raw_caption, vocab):
 
     return captions_input_tensor, lengths_tensor, targets_tensor
 
+
+if __name__ == '__main__':
+    vocabulary = Vocabulary()
+    vocabulary.build_vocabulary(json_path=train_annFile)
+    L = len(vocabulary)
+    print(L)
+    print(vocabulary.idx2word[0])

@@ -1,129 +1,72 @@
-from config import csv_train_path, train_data_path
-import nltk
-import csv
-from preprocess import preprocess_caption_for_decoder
+from preprocess import target_transform
 import torch
-import pandas as pd
-from skimage import io
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
 from model import EncoderCNN, DecoderRNN
-from preprocess import Vocabulary
-
-
-class miniCOCODataset(Dataset):
-    def __init__(self, csv_file, root_dir, vocabulary):
-        """
-        miniCOCODataset uses every image in data to make 5 samples,
-        as there are 5 captions for each image.
-        :param csv_file (str): Path to the csv file with captions
-        :param root_dir (str): Directory with all the images
-        :param vocabulary object
-        """
-        self.miniCOCO_frame = pd.read_csv(csv_file)
-        self.root_dir = root_dir
-        self.transform = transforms.Compose([
-            transforms.ToPILImage(),  # Convert numpy array from io.imread to PIL Image
-            transforms.RandomResizedCrop(224),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=(0.485, 0.456, 0.406),
-                                 std=(0.229, 0.224, 0.225))
-        ])
-        self.vocabulary = vocabulary
-
-    def __len__(self):
-        return 5 * len(self.miniCOCO_frame)  # each image has 5 captions
-
-    def __getitem__(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
-
-        # Get raw image and apply transforms
-        idx_name = idx // 5
-        img_name = self.miniCOCO_frame.iloc[idx_name]['img_name']
-        img_path = self.root_dir + img_name
-        image = io.imread(img_path)  # ndarray image
-        transformed_image = self.transform(image)  # Apply transforms
-
-        # Get raw caption
-        idx_caption = idx % 5 + 1
-        caption = self.miniCOCO_frame.iloc[idx_name]['caption'+str(idx_caption)]
-
-        # Out of caption Make input and target tensors for training decoder
-        input_caption, length, target = preprocess_caption_for_decoder(caption, self.vocabulary)
-
-        return transformed_image, input_caption, length, target
+from preprocess import Vocabulary, preprocess_caption
+import torchvision.datasets as datasets
+import torchvision.transforms as transforms
+from torch.utils.data import DataLoader
+from config import *
 
 
 if __name__ == "__main__":
-    # Preprocess captions
-    # Make a list of all train captions
-    train_captions = []
-    with open(csv_train_path, newline='', encoding='utf-8') as csvfile:
-        reader = csv.reader(csvfile)
-        next(reader)  # Skip header
-        for row in reader:
-            train_captions.extend(row[1:6])
-    # Tokenize train captions
-    tokenized_captions = [nltk.word_tokenize(s.lower()) for s in train_captions]
 
-    # Make vocabulary out of train captions
-    miniCOCO_vocabulary = Vocabulary(freq_threshold=1)
-    miniCOCO_vocabulary.build_vocabulary(sentences_list=tokenized_captions)
+    # Make a vocabulary
+    vocabulary = Vocabulary()
+    vocabulary.build_vocabulary(json_path=train_annFile)
 
-    # Make train miniCOCO Dataset
-    train_miniCOCO_dataset = miniCOCODataset(csv_file=csv_train_path,
-                                             root_dir=train_root_dir,
-                                             vocabulary=miniCOCO_vocabulary)
+    # Make train Dataset and DataLoader
+    # Define preprocessing transformations for the images
+    transform = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225])
+    ])
 
-    # Define model hyperparameters
-    feature_size = 50
-    embed_size = feature_size  # Because both words (tokens) and images are embedded to the same vector space
-    hidden_size = 10
-    num_layers = 1
-    max_seq_length = miniCOCO_vocabulary.max_caption_len + 2
+    # Built-in CocoCaptions class to load the train dataset
+    train_data = datasets.CocoCaptions(
+        root=train_data_path,
+        annFile=train_annFile,
+        transform=transform  # preprocess images
+    )
 
-    learning_rate = 0.01
-    num_epochs = 40
-    batch_size = 8
-
-    # Make train miniCOCO DataLoader
-    miniCOCO_dataloader = DataLoader(train_miniCOCO_dataset,
-                                     batch_size=batch_size,
-                                     shuffle=True,
-                                     num_workers=4)
-
-    vocab_size = len(miniCOCO_vocabulary)
+    # DataLoader for batching and shuffling
+    train_loader = DataLoader(train_data,
+                              batch_size=batch_size,
+                              shuffle=True,
+                              num_workers=4)  # num_workers determines how many subprocesses to use for data loading
 
     loss_track = []
     # Build the models
     encoder = EncoderCNN(feature_size=feature_size)
-    decoder = DecoderRNN(embed_size=50,
+    decoder = DecoderRNN(embed_size=embed_size,
                          hidden_size=hidden_size,
-                         vocab_size=vocab_size,
+                         vocab_size=len(vocabulary),
                          num_layers=num_layers,
-                         max_seq_length=max_seq_length)
+                         max_seq_length=vocabulary.L)
 
     # Define loss and optimizer
-    criterion = torch.nn.CrossEntropyLoss(ignore_index=miniCOCO_vocabulary.pad_idx)  # Computes the cross entropy loss
-                                                                # between input logits (outputs of decoder) and target
-                                                                # one word at a time
+    criterion = torch.nn.CrossEntropyLoss(ignore_index=vocabulary.pad_idx)  # Computes the cross entropy loss
+                                                        # between input logits (outputs of decoder) and target
+                                                        # one word at a time
     params = list(decoder.parameters()) + list(encoder.linear.parameters()) + list(encoder.bn.parameters())
     optimizer = torch.optim.Adam(params, lr=learning_rate)
 
-    # Train the models
-    total_step = len(train_miniCOCO_dataset)
+    # Train the model
+    total_step = len(train_data)
     for epoch in range(num_epochs):
-        for i, (images, input_captions, lengths, targets) in enumerate(miniCOCO_dataloader):
+        for i, (images, captions) in enumerate(train_loader):
+            # Preprocess captions
+            input_captions, lengths, targets = target_transform(captions, vocabulary)
+
 
             # Forward pass
             feature_maps = encoder(images)
             outputs = decoder(feature_maps, input_captions)
-            #  RuntimeError: Expected target size [8, 924], got [8, 27]
 
             # Calculating the loss
-            loss = criterion(outputs.reshape(-1, vocab_size), targets.reshape(-1))
+            loss = criterion(outputs.reshape(-1, len(vocabulary)), targets.reshape(-1))
             print(f'{epoch=},  {loss=}')
             loss_track.append(loss)
 

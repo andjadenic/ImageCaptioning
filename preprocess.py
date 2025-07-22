@@ -76,8 +76,7 @@ class Vocabulary:
         return len(self.word2idx)
 
 
-
-def preprocess_caption_for_decoder(raw_caption, vocab):
+def preprocess_caption(raw_caption, vocab):
     '''
     Preprocesses single raw caption for DecoderRNN
 
@@ -97,13 +96,12 @@ def preprocess_caption_for_decoder(raw_caption, vocab):
             Excludes <START>, includes <END>.
     '''
 
-    if not raw_caption:
-        # Handle empty caption
-        return torch.empty(0, 0, dtype=torch.long), torch.empty(0, dtype=torch.long), torch.empty(0, 0,
-                                                                                                  dtype=torch.long)
+    # Remove punctuation, lower case.
+    translator = str.maketrans('', '', string.punctuation)
+    processed_caption = raw_caption.lower().translate(translator)
 
     # Tokenize and Calculate Original Word Counts
-    tokens = nltk.word_tokenize(raw_caption.lower())
+    tokens = nltk.word_tokenize(processed_caption.lower())
     length = len(tokens)
 
     # Numericalize, Add Special Tokens (<START>, <END>)
@@ -120,7 +118,7 @@ def preprocess_caption_for_decoder(raw_caption, vocab):
 
     # Pad Input and Target Sequences
     # Both input and target sequences for a given caption are padded to length N+1
-    max_len_input_target = vocab.max_caption_len + 1
+    max_len_input_target = vocab.L + 1
 
     padded_inputs = []
     padded_targets = []
@@ -141,9 +139,29 @@ def preprocess_caption_for_decoder(raw_caption, vocab):
     return captions_input_tensor, lengths_tensor, targets_tensor
 
 
+def target_transform(captions, vocabulary):
+    '''Convert list of (tuple of) strings into torch tensors using pre-built vocabulary.'''
+
+    if type(captions[0] == tuple):
+        captions = captions[0]
+
+    i, l, o = [], [], []
+    for caption in captions:
+        i_curr, l_curr, o_curr = preprocess_caption(caption, vocabulary)
+        i.append(i_curr)
+        l.append(l_curr)
+        o.append(o_curr)
+    return torch.stack(i), torch.stack(l), torch.stack(o)
+
+
 if __name__ == '__main__':
     vocabulary = Vocabulary()
     vocabulary.build_vocabulary(json_path=train_annFile)
-    L = len(vocabulary)
-    print(L)
-    print(vocabulary.idx2word[0])
+
+    captions = ['There is nothing...', '...left to DO.']
+
+    input_captions, lengths, targets = target_transform(captions, vocabulary)
+
+    print(f'{input_captions=}', '\n')
+    print(f'{lengths=}', '\n')
+    print(f'{targets=}', '\n')

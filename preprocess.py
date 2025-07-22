@@ -100,50 +100,36 @@ def preprocess_caption(raw_caption, vocab):
     translator = str.maketrans('', '', string.punctuation)
     processed_caption = raw_caption.lower().translate(translator)
 
-    # Tokenize and Calculate Original Word Counts
     tokens = nltk.word_tokenize(processed_caption.lower())
-    length = len(tokens)
 
     # Numericalize, Add Special Tokens (<START>, <END>)
     caption_indices = [vocab(token) for token in tokens]  # Maps tokens into indexes: [id(w1), id(w2), ..., id(wN)]
     full_indices = [vocab.start_idx] + caption_indices + [vocab.end_idx]   # Includes <START> and <END> indexes:
                                                          # [id(<START>), id(w1), id(w2), ..., id(wN), id(<END>)]
 
-    # Calculate lengths for pack_padded_sequence (original length + 2)
-    length_for_packing = length + 2
-
     # Prepare Input and Target Sequence (before padding)
     input_sequence = full_indices[:-1]  # [id(<START>), id(w1), id(w2), ..., id(wN)]
     target_sequence = full_indices[1:]  # [id(w1), id(w2), ..., id(wN), id(<END>)]
 
     # Pad Input and Target Sequences
-    # Both input and target sequences for a given caption are padded to length N+1
-    max_len_input_target = vocab.L + 1
-
-    padded_inputs = []
-    padded_targets = []
 
     # Pad input sequence to [id(<START>), id(w1), id(w2), ..., id(wN), id(<PAD>), ..., id(<PAD>)]
-    pad_len_inp = max_len_input_target - len(input_sequence)
-    padded_inp = input_sequence + [vocab.pad_idx] * pad_len_inp
+    padded_input = input_sequence + [vocab.pad_idx] * (vocab.L - len(input_sequence))
 
     # Pad target sequence to  [id(w1), id(w2), ..., id(wN), id(<END>), id(<PAD>), ..., id(<PAD>)]
-    pad_len_tgt = max_len_input_target - len(target_sequence)
-    padded_tgt = target_sequence + [vocab.pad_idx] * pad_len_tgt
+    padded_target = target_sequence + [vocab.pad_idx] * (vocab.L - len(target_sequence))
 
     # Convert to PyTorch Tensors
-    captions_input_tensor = torch.tensor(padded_inp, dtype=torch.long)
-    targets_tensor = torch.tensor(padded_tgt, dtype=torch.long)
-    lengths_tensor = torch.tensor(length_for_packing, dtype=torch.long)  # Use the N+2 lengths
+    captions_input_tensor = torch.tensor(padded_input, dtype=torch.long)
+    targets_tensor = torch.tensor(padded_target, dtype=torch.long)
+    lengths_tensor = torch.tensor(len(tokens), dtype=torch.long)
 
     return captions_input_tensor, lengths_tensor, targets_tensor
 
 
 def target_transform(captions, vocabulary):
     '''Convert list of (tuple of) strings into torch tensors using pre-built vocabulary.'''
-
-    if type(captions[0] == tuple):
-        captions = captions[0]
+    captions = captions[0]
 
     i, l, o = [], [], []
     for caption in captions:
@@ -151,6 +137,9 @@ def target_transform(captions, vocabulary):
         i.append(i_curr)
         l.append(l_curr)
         o.append(o_curr)
+        print(f'{i_curr.shape=}')
+        print(f'{l_curr.shape=}')
+        print(f'{o_curr.shape=}')
     return torch.stack(i), torch.stack(l), torch.stack(o)
 
 
@@ -158,10 +147,13 @@ if __name__ == '__main__':
     vocabulary = Vocabulary()
     vocabulary.build_vocabulary(json_path=train_annFile)
 
-    captions = ['There is nothing...', '...left to DO.']
+    captions = [('There is nothing...', '...left to DO.')]
 
     input_captions, lengths, targets = target_transform(captions, vocabulary)
 
     print(f'{input_captions=}', '\n')
+    print(f'{input_captions.shape=}', '\n')
     print(f'{lengths=}', '\n')
+    print(f'{lengths.shape=}', '\n')
     print(f'{targets=}', '\n')
+    print(f'{targets.shape=}', '\n')

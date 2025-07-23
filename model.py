@@ -38,7 +38,7 @@ class EncoderCNN(nn.Module):
 
 
 class DecoderRNN(nn.Module):
-    def __init__(self, embed_size, hidden_size, vocab_size, num_layers, max_seq_length=30):
+    def __init__(self, embed_size, hidden_size, vocab_size, num_layers, max_seq_length=50):
         """
         INPUTS:
         :param embed_size: word space size, this is an input size of LSTM block

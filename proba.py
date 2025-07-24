@@ -3,6 +3,7 @@ import string
 import torch
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+import numpy as np
 
 
 class Vocabulary:
@@ -112,7 +113,7 @@ def collate_fn(input_batch):
 
 
 if __name__ == "__main__":
-    sentences = [
+    '''sentences = [
         "This movie is fantastic, i loved it!",  # 7
         "I hated every minute.",  # 4
         "truly captivating experience.",  # 3
@@ -156,4 +157,10 @@ if __name__ == "__main__":
             sequence=packed_input,
             batch_first=True
         )
-        print(f'{unpacked_output=}', '\n')
+        print(f'{unpacked_output=}', '\n')'''
+
+    n = np.array([[1, 2, 3],
+                  [4, 5, 6]])
+    t = torch.tensor(n).to(torch.long)
+    print(type(t))
+    print(t)

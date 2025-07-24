@@ -9,7 +9,6 @@ test_data_path = r'C:\Users\csuser\Documents\andja_denic\ImageCaptioning\data\te
 train_annFile = r'C:\Users\csuser\Documents\andja_denic\ImageCaptioning\data\annotations\captions_train2017.json'  # Path to json annotation file
 test_annFile = r'C:\Users\csuser\Documents\andja_denic\ImageCaptioning\data\annotations\captions_val2017.json'
 
-
 # Hyperparameters
 feature_size = 512  # size of a feature (context) vector that is encoder's output
 embed_size = feature_size  # Because both words (tokens) and images are embedded to the same vector space
@@ -17,6 +16,7 @@ num_layers = 2
 hidden_size = 256
 
 # Training
-batch_size = 32
+num_workers = 0
+batch_size = 2
 learning_rate = 0.01
 num_epochs = 40

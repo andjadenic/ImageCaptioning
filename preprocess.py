@@ -1,8 +1,10 @@
 import nltk
 import torch
-import json
 import string
-from config import train_annFile
+from config import *
+from torch.utils.data import Dataset
+from torch.utils.data import DataLoader
+from utils import *
 
 
 class Vocabulary:
@@ -78,17 +80,19 @@ class Vocabulary:
 
 def preprocess_caption(raw_caption, vocab):
     '''
-    Preprocesses single raw caption for DecoderRNN
+    Preprocesses single raw caption for DecoderRNN.
+    Pipeline: removes punctuation, converts words to lowercase, numericalizes words,
+    adds <START> and <END> tokens, adds padding
 
     :param raw_captions (str): Raw caption
     :param vocab: A Vocabulary object
 
     :return:
-    tuple: A tuple containing:
-        - captions_input_tensor (torch.Tensor): [id(<START>), id(w1), ..., id(wN)]
+    dictionary: A dictionary containing:
+        - inputs_tensor (torch.Tensor): [id(<START>), id(w1), ..., id(wN)]
             Indexed and padded input sequence.
             Includes <START> index, excludes <END> index.
-        - lengths_tensor (torch.Tensor): Original sequence lengths.
+        - lengths_tensor (torch.Tensor): Original sequence lengths + 1.
             Required by pack_padded_sequence for DecoderRNN's forward method.
             size = ([batch_size, ])
         - targets_tensor (torch.Tensor):  [id(w1), ..., id(wN), id(<END>)]
@@ -112,7 +116,6 @@ def preprocess_caption(raw_caption, vocab):
     target_sequence = full_indices[1:]  # [id(w1), id(w2), ..., id(wN), id(<END>)]
 
     # Pad Input and Target Sequences
-
     # Pad input sequence to [id(<START>), id(w1), id(w2), ..., id(wN), id(<PAD>), ..., id(<PAD>)]
     padded_input = input_sequence + [vocab.pad_idx] * (vocab.L - len(input_sequence))
 
@@ -120,40 +123,96 @@ def preprocess_caption(raw_caption, vocab):
     padded_target = target_sequence + [vocab.pad_idx] * (vocab.L - len(target_sequence))
 
     # Convert to PyTorch Tensors
-    captions_input_tensor = torch.tensor(padded_input, dtype=torch.long)
+    inputs_tensor = torch.tensor(padded_input, dtype=torch.long)
     targets_tensor = torch.tensor(padded_target, dtype=torch.long)
-    lengths_tensor = torch.tensor(len(tokens), dtype=torch.long)
+    lengths_tensor = torch.tensor(len(tokens) + 1, dtype=torch.long)
 
-    return captions_input_tensor, lengths_tensor, targets_tensor
+    return {'inputs_tensor': inputs_tensor,
+            'lengths_tensor': lengths_tensor,
+            'targets_tensor': targets_tensor}
 
 
-def target_transform(captions, vocabulary):
-    '''Convert list of (tuple of) strings into torch tensors using pre-built vocabulary.'''
-    captions = captions[0]
+def collate_fn(input_batch, vocabulary):
+    '''Convert list of preprocessed captions into mini-batch torch tensors using pre-built vocabulary in descending order.'''
+    input_batch.sort(key=lambda x: x['lengths_tensor'], reverse=True)
 
-    i, l, o = [], [], []
-    for caption in captions:
-        i_curr, l_curr, o_curr = preprocess_caption(caption, vocabulary)
-        i.append(i_curr)
-        l.append(l_curr)
-        o.append(o_curr)
-        print(f'{i_curr.shape=}')
-        print(f'{l_curr.shape=}')
-        print(f'{o_curr.shape=}')
-    return torch.stack(i), torch.stack(l), torch.stack(o)
+    img_tensor = [item['img_tensor'] for item in input_batch]
+    inputs_tensor = [item['inputs_tensor'] for item in input_batch]
+    lengths_tensor = [item['lengths_tensor'] for item in input_batch]
+    targets_tensor = [item['targets_tensor'] for item in input_batch]
+
+    return {
+        'img_tensor': torch.stack(img_tensor),
+        'inputs_tensor': torch.stack(inputs_tensor).to(torch.long),
+        'lengths_tensor': torch.stack(lengths_tensor).to(torch.long),
+        'targets_tensor': torch.stack(targets_tensor).to(torch.long)
+    }
+
+
+class CocoDataset(Dataset):
+    def __init__(self, data_path, json_path, vocabulary):
+        self.data_path = data_path
+        self.json_path = json_path
+
+        self.vocabulary = vocabulary
+        self.word2idx = vocabulary.word2idx
+        self.idx2word = vocabulary.idx2word
+        self.L = vocabulary.L
+        self.vocab_size = len(vocabulary)
+
+    def __len__(self):
+        supported_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff')
+        image_files = [f for f in os.listdir(self.data_path)
+                       if f.lower().endswith(supported_extensions)]
+        return len(image_files)
+
+    def __getitem__(self, idx):
+        img_name = get_ith_image(self.data_path, idx)['img_name']
+        img = get_ith_image(self.data_path, idx)['img']
+        captions_list = get_captions(self.json_path, img_name)
+
+        preprocessed_captions = [preprocess_caption(c, self.vocabulary) for c in captions_list]
+        united_captions = collate_fn(preprocessed_captions, self.vocabulary)
+
+        return {
+            'img_tensor': torch.tensor(img).to(torch.long),
+            'inputs_tensor': united_captions['inputs_tensor'],
+            'lengths_tensor': united_captions['lengths_tensor'],
+            'targets_tensor': united_captions['targets_tensor']
+        }
+
 
 
 if __name__ == '__main__':
     vocabulary = Vocabulary()
     vocabulary.build_vocabulary(json_path=train_annFile)
 
-    captions = [('There is nothing...', '...left to DO.')]
+    train_dataset = CocoDataset(data_path=train_data_path, json_path=train_annFile, vocabulary=vocabulary)
 
-    input_captions, lengths, targets = target_transform(captions, vocabulary)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        collate_fn=collate_fn
+    )
 
-    print(f'{input_captions=}', '\n')
-    print(f'{input_captions.shape=}', '\n')
-    print(f'{lengths=}', '\n')
-    print(f'{lengths.shape=}', '\n')
-    print(f'{targets=}', '\n')
-    print(f'{targets.shape=}', '\n')
+    for i, batch in enumerate(train_loader):
+        print(f'{batch['inputs_tensor']=}')
+        print(f'{batch['lengths_tensor']=}')
+
+        '''packed_input = torch.nn.utils.rnn.pack_padded_sequence(
+            input=batch['processed_sentence'],
+            lengths=batch['length'],
+            batch_first=True
+        )
+        print(f'{packed_input.data=}')
+        print(f'{packed_input.batch_sizes=}')
+
+        unpacked_output, unpacked_length = torch.nn.utils.rnn.pad_packed_sequence(
+            sequence=packed_input,
+            batch_first=True
+        )
+        print(f'{unpacked_output=}', '\n')'''
+        if i==2:
+            break

@@ -133,7 +133,7 @@ def preprocess_caption(raw_caption, vocab):
 
 
 def collate_fn(input_batch, vocabulary):
-    '''Convert list of preprocessed captions into mini-batch torch tensors using pre-built vocabulary in descending order.'''
+    '''Convert list of preprocessed images and captions into mini-batch torch tensors using pre-built vocabulary in descending order.'''
     input_batch.sort(key=lambda x: x['lengths_tensor'], reverse=True)
 
     img_tensor = [item['img_tensor'] for item in input_batch]
@@ -160,6 +160,20 @@ class CocoDataset(Dataset):
         self.L = vocabulary.L
         self.vocab_size = len(vocabulary)
 
+        supported_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff')
+        image_names_sorted = [f for f in os.listdir(self.data_path)
+                       if f.lower().endswith(supported_extensions)]
+        image_names_sorted.sort()
+        img_paths = [os.path.join(self.data_path, name) for name in image_names_sorted]
+        images_sorted = [io.imread(img_path) for img_path in img_paths]
+        self.img_list = []
+        self.captions_list = []
+        for img, img_name in zip(images_sorted, img_paths):
+            captions = get_captions(self.json_path, img_name)
+            for caption in captions:
+                self.img_list.append(img)
+                self.captions_list.append(caption)
+
     def __len__(self):
         supported_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff')
         image_files = [f for f in os.listdir(self.data_path)
@@ -172,13 +186,15 @@ class CocoDataset(Dataset):
         captions_list = get_captions(self.json_path, img_name)
 
         preprocessed_captions = [preprocess_caption(c, self.vocabulary) for c in captions_list]
-        united_captions = collate_fn(preprocessed_captions, self.vocabulary)
+        inputs_tensor = [item['inputs_tensor'] for item in preprocessed_captions]
+        lengths_tensor = [item['lengths_tensor'] for item in preprocessed_captions]
+        targets_tensor = [item['targets_tensor'] for item in preprocessed_captions]
 
         return {
             'img_tensor': torch.tensor(img).to(torch.long),
-            'inputs_tensor': united_captions['inputs_tensor'],
-            'lengths_tensor': united_captions['lengths_tensor'],
-            'targets_tensor': united_captions['targets_tensor']
+            'inputs_tensor': torch.stack(inputs_tensor).to(torch.long),
+            'lengths_tensor':  torch.stack(lengths_tensor).to(torch.long),
+            'targets_tensor': torch.stack(targets_tensor).to(torch.long)
         }
 
 
@@ -187,9 +203,15 @@ if __name__ == '__main__':
     vocabulary = Vocabulary()
     vocabulary.build_vocabulary(json_path=train_annFile)
 
-    train_dataset = CocoDataset(data_path=train_data_path, json_path=train_annFile, vocabulary=vocabulary)
+    train_dataset = CocoDataset(data_path=train_data_path,
+                                json_path=train_annFile,
+                                vocabulary=vocabulary)
 
-    train_loader = DataLoader(
+    print(f'{len(train_dataset.img_list)=}')
+    print(f'{len(train_dataset.captions_list)=}')
+    #print(train_dataset[0]['img_tensor'])
+
+    '''train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
@@ -197,11 +219,15 @@ if __name__ == '__main__':
         collate_fn=collate_fn
     )
 
+    print(train_loader.batch_size)
     for i, batch in enumerate(train_loader):
+        if i >=3:
+            break
+        print(f'batch {i}:')
         print(f'{batch['inputs_tensor']=}')
         print(f'{batch['lengths_tensor']=}')
 
-        '''packed_input = torch.nn.utils.rnn.pack_padded_sequence(
+        packed_input = torch.nn.utils.rnn.pack_padded_sequence(
             input=batch['processed_sentence'],
             lengths=batch['length'],
             batch_first=True
@@ -214,5 +240,3 @@ if __name__ == '__main__':
             batch_first=True
         )
         print(f'{unpacked_output=}', '\n')'''
-        if i==2:
-            break

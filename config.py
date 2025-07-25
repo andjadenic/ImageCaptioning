@@ -17,6 +17,6 @@ hidden_size = 256
 
 # Training
 num_workers = 0
-batch_size = 2
+batch_size = 32
 learning_rate = 0.01
 num_epochs = 40

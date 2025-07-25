@@ -49,6 +49,9 @@ if __name__ == '__main__':
                              std=[0.229, 0.224, 0.225])
     ])
 
+    f
+
+
     train_data = datasets.CocoCaptions(
         root=train_data_path,
         annFile=train_annFile,

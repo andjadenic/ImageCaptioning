@@ -24,7 +24,7 @@ def get_ith_sample(id, annFile, data_path):
             break
     for obj in data['images']:
         if obj['id'] == img_id:
-            img = io.imread(os.path.join(annFile, obj['file_name']))
+            img = io.imread(os.path.join(data_path, obj['file_name']))
             break
     return {
         'img_id': img_id,
@@ -32,3 +32,4 @@ def get_ith_sample(id, annFile, data_path):
         'ann_id': ann_id,
         'caption': caption
     }
+

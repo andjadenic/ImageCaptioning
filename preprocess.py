@@ -5,6 +5,9 @@ from config import *
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from utils import *
+from torchvision import transforms
+from torchvision.transforms import functional as F
+from torchvision.transforms.functional import to_pil_image
 
 
 class Vocabulary:
@@ -89,13 +92,13 @@ def preprocess_caption(raw_caption, vocab):
 
     :return:
     dictionary: A dictionary containing:
-        - inputs_tensor (torch.Tensor): [id(<START>), id(w1), ..., id(wN)]
+        - input_tensor (torch.Tensor): [id(<START>), id(w1), ..., id(wN)]
             Indexed and padded input sequence.
             Includes <START> index, excludes <END> index.
-        - lengths_tensor (torch.Tensor): Original sequence lengths + 1.
+        - length_tensor (torch.Tensor): Original sequence lengths + 1.
             Required by pack_padded_sequence for DecoderRNN's forward method.
             size = ([batch_size, ])
-        - targets_tensor (torch.Tensor):  [id(w1), ..., id(wN), id(<END>)]
+        - target_tensor (torch.Tensor):  [id(w1), ..., id(wN), id(<END>)]
             Indexed and padded target sequences for loss calculation.
             Excludes <START>, includes <END>.
     '''
@@ -123,29 +126,29 @@ def preprocess_caption(raw_caption, vocab):
     padded_target = target_sequence + [vocab.pad_idx] * (vocab.L - len(target_sequence))
 
     # Convert to PyTorch Tensors
-    inputs_tensor = torch.tensor(padded_input, dtype=torch.long)
-    targets_tensor = torch.tensor(padded_target, dtype=torch.long)
-    lengths_tensor = torch.tensor(len(tokens) + 1, dtype=torch.long)
+    input_tensor = torch.tensor(padded_input, dtype=torch.long)
+    target_tensor = torch.tensor(padded_target, dtype=torch.long)
+    length_tensor = torch.tensor(len(tokens) + 1, dtype=torch.long)
 
-    return {'inputs_tensor': inputs_tensor,
-            'lengths_tensor': lengths_tensor,
-            'targets_tensor': targets_tensor}
+    return {'input_tensor': input_tensor,
+            'length_tensor': length_tensor,
+            'target_tensor': target_tensor}
 
 
-def collate_fn(input_batch, vocabulary):
-    '''Convert list of preprocessed images and captions into mini-batch torch tensors using pre-built vocabulary in descending order.'''
-    input_batch.sort(key=lambda x: x['lengths_tensor'], reverse=True)
+def collate_fn(input_batch):
+    '''Convert list of getitem's returns into mini-batch torch tensors in descending order by length.'''
+    input_batch.sort(key=lambda x: x['length_tensor'].item(), reverse=True)
 
     img_tensor = [item['img_tensor'] for item in input_batch]
-    inputs_tensor = [item['inputs_tensor'] for item in input_batch]
-    lengths_tensor = [item['lengths_tensor'] for item in input_batch]
-    targets_tensor = [item['targets_tensor'] for item in input_batch]
+    input_tensor = [item['input_tensor'] for item in input_batch]
+    length_tensor = [item['length_tensor'] for item in input_batch]
+    target_tensor = [item['target_tensor'] for item in input_batch]
 
     return {
-        'img_tensor': torch.stack(img_tensor),
-        'inputs_tensor': torch.stack(inputs_tensor).to(torch.long),
-        'lengths_tensor': torch.stack(lengths_tensor).to(torch.long),
-        'targets_tensor': torch.stack(targets_tensor).to(torch.long)
+        'img_tensor': torch.stack(img_tensor).to(torch.float),
+        'input_tensor': torch.stack(input_tensor).to(torch.long),
+        'length_tensor': torch.stack(length_tensor).to(torch.long),
+        'target_tensor': torch.stack(target_tensor).to(torch.long)
     }
 
 
@@ -160,41 +163,35 @@ class CocoDataset(Dataset):
         self.L = vocabulary.L
         self.vocab_size = len(vocabulary)
 
-        supported_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff')
-        image_names_sorted = [f for f in os.listdir(self.data_path)
-                       if f.lower().endswith(supported_extensions)]
-        image_names_sorted.sort()
-        img_paths = [os.path.join(self.data_path, name) for name in image_names_sorted]
-        images_sorted = [io.imread(img_path) for img_path in img_paths]
-        self.img_list = []
-        self.captions_list = []
-        for img, img_name in zip(images_sorted, img_paths):
-            captions = get_captions(self.json_path, img_name)
-            for caption in captions:
-                self.img_list.append(img)
-                self.captions_list.append(caption)
+        with open(train_annFile, 'r') as file:
+            data = json.load(file)
+        self.captions_id_list = [item['id'] for item in data['annotations']]
 
     def __len__(self):
-        supported_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff')
-        image_files = [f for f in os.listdir(self.data_path)
-                       if f.lower().endswith(supported_extensions)]
-        return len(image_files)
+        return len(self.captions_id_list)
 
     def __getitem__(self, idx):
-        img_name = get_ith_image(self.data_path, idx)['img_name']
-        img = get_ith_image(self.data_path, idx)['img']
-        captions_list = get_captions(self.json_path, img_name)
+        sample = get_ith_sample(id=idx, annFile=self.json_path, data_path=self.data_path)
 
-        preprocessed_captions = [preprocess_caption(c, self.vocabulary) for c in captions_list]
-        inputs_tensor = [item['inputs_tensor'] for item in preprocessed_captions]
-        lengths_tensor = [item['lengths_tensor'] for item in preprocessed_captions]
-        targets_tensor = [item['targets_tensor'] for item in preprocessed_captions]
+        raw_img = sample['img']
+        raw_caption = sample['caption']
+
+        preprocessed_caption = preprocess_caption(raw_caption, self.vocabulary)
+
+        transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])
+        ])
+        transformed_img = transform(to_pil_image(raw_img))
 
         return {
-            'img_tensor': torch.tensor(img).to(torch.long),
-            'inputs_tensor': torch.stack(inputs_tensor).to(torch.long),
-            'lengths_tensor':  torch.stack(lengths_tensor).to(torch.long),
-            'targets_tensor': torch.stack(targets_tensor).to(torch.long)
+            'img_tensor': transformed_img,
+            'input_tensor': preprocessed_caption['input_tensor'],
+            'length_tensor': preprocessed_caption['length_tensor'],
+            'target_tensor': preprocessed_caption['target_tensor']
         }
 
 
@@ -207,11 +204,7 @@ if __name__ == '__main__':
                                 json_path=train_annFile,
                                 vocabulary=vocabulary)
 
-    print(f'{len(train_dataset.img_list)=}')
-    print(f'{len(train_dataset.captions_list)=}')
-    #print(train_dataset[0]['img_tensor'])
-
-    '''train_loader = DataLoader(
+    train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
@@ -219,15 +212,14 @@ if __name__ == '__main__':
         collate_fn=collate_fn
     )
 
-    print(train_loader.batch_size)
     for i, batch in enumerate(train_loader):
-        if i >=3:
+        if i >= 5:
             break
         print(f'batch {i}:')
-        print(f'{batch['inputs_tensor']=}')
-        print(f'{batch['lengths_tensor']=}')
+        print(f'{batch['img_tensor'].mean(dim=[0, 2, 3])=}', '\n')
+        print(f'{batch['img_tensor'].std(dim=[0, 2, 3])=}', '\n')
 
-        packed_input = torch.nn.utils.rnn.pack_padded_sequence(
+        '''packed_input = torch.nn.utils.rnn.pack_padded_sequence(
             input=batch['processed_sentence'],
             lengths=batch['length'],
             batch_first=True

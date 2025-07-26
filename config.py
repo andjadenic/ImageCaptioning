@@ -1,4 +1,4 @@
-# File with all hyperparameters and paths
+import torch
 
 # Paths
 download_COCO_captions_train2017_json = r'C:\Users\csuser\Documents\andja_denic\ImageCaptioning\download_COCO\captions_train2017.json'
@@ -10,6 +10,7 @@ train_annFile = r'C:\Users\csuser\Documents\andja_denic\ImageCaptioning\data\ann
 test_annFile = r'C:\Users\csuser\Documents\andja_denic\ImageCaptioning\data\annotations\captions_val2017.json'
 
 # Hyperparameters
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 feature_size = 512  # size of a feature (context) vector that is encoder's output
 embed_size = feature_size  # Because both words (tokens) and images are embedded to the same vector space
 num_layers = 2

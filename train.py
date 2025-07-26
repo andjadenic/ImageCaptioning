@@ -10,41 +10,15 @@ from config import *
 
 if __name__ == "__main__":
 
-    # Make a vocabulary
-    vocabulary = Vocabulary()
-    vocabulary.build_vocabulary(json_path=train_annFile)
-
-    # Make train Dataset and DataLoader
-    # Define preprocessing transformations for the images
-    transform = transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225])
-    ])
-
-    # Built-in CocoCaptions class to load the train dataset
-    train_data = datasets.CocoCaptions(
-        root=train_data_path,
-        annFile=train_annFile,
-        transform=transform  # preprocess images
-    )
-
-    # DataLoader for batching and shuffling
-    train_loader = DataLoader(train_data,
-                              batch_size=batch_size,
-                              shuffle=True,
-                              num_workers=4)  # num_workers determines how many subprocesses to use for data loading
 
     loss_track = []
     # Build the models
-    encoder = EncoderCNN(feature_size=feature_size)
+    encoder = EncoderCNN(feature_size=feature_size).to(device)
     decoder = DecoderRNN(embed_size=embed_size,
                          hidden_size=hidden_size,
                          vocab_size=len(vocabulary),
                          num_layers=num_layers,
-                         max_seq_length=vocabulary.L)
+                         max_seq_length=vocabulary.L).to(device)
 
     # Define loss and optimizer
     criterion = torch.nn.CrossEntropyLoss(ignore_index=vocabulary.pad_idx)  # Computes the cross entropy loss

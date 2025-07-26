@@ -1,9 +1,11 @@
 import string
 
 import torch
+import torch.nn as nn
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
-import numpy as np
+from config import *
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 
 class Vocabulary:
@@ -67,19 +69,14 @@ class SentenceDataset(Dataset):
         sentence = self.raw_sentences[index]
         sentiment = self.sentiments[index]
 
-        if self.transform:
-            length = len(RemovePunctuation()(ToLowercase()(sentence)).split(' '))
-            processed_sentence = self.transform(sentence)
-            processed_sentence = torch.tensor(processed_sentence, dtype=torch.long)
-        else:
-            processed_sentence = ToLowercase()(sentence)
-            processed_sentence = RemovePunctuation()(sentence)
-            processed_sentence = processed_sentence.split(' ')
+        length = len(RemovePunctuation()(ToLowercase()(sentence)).split(' '))
+        processed_sentence = self.transform(sentence)
+        processed_sentence = torch.tensor(processed_sentence, dtype=torch.long).to(device)
 
         return {
             'processed_sentence': processed_sentence,
-            'label': torch.tensor(sentiment, dtype=torch.long),
-            'length': length
+            'label': torch.tensor(sentiment, dtype=torch.long).to(device),
+            'length': torch.tensor(length).to(device)
         }
 
 
@@ -96,12 +93,13 @@ class TextProcessingPipeline:
         padded_ids = self.pad_sequence(numerical_ids)
         return padded_ids
 
+
 def collate_fn(input_batch):
     input_batch.sort(key=lambda x: x['length'], reverse=True)
 
     sentences = [item['processed_sentence'] for item in input_batch]
     labels = [item['label'] for item in input_batch]
-    lengths = [item['length'] for item in input_batch]
+    lengths = [item['length'].item() for item in input_batch]
 
     return {
         'processed_sentence': torch.stack(sentences).to(torch.long),
@@ -110,6 +108,17 @@ def collate_fn(input_batch):
     }
 
 
+class model(nn.Module):
+    def __init__(self, input_size):
+        super(model, self).__init__()
+
+        self.rnn = nn.RNN(input_size=input_size, hidden_size=64, num_layers=1, batch_first=True)
+        self.fc = nn.Linear(in_features=64, out_features=1)
+
+    def forward(self, x):
+        out, _ = self.rnn(x)
+        out = self.fc(out[:, -1, :])
+        return out
 
 
 if __name__ == "__main__":
@@ -131,8 +140,6 @@ if __name__ == "__main__":
                                        vocab=vocab,
                                        transform=text_transform)
 
-
-
     sentence_loader = DataLoader(
         sentence_dataset,
         batch_size=2,
@@ -141,26 +148,30 @@ if __name__ == "__main__":
         collate_fn=collate_fn
     )
 
-    for i, batch in enumerate(sentence_loader):
-        print(f'{batch['processed_sentence']=}')
-        print(f'{batch['length']=}')
+    model = model(input_size=len(vocab)).to(device)
 
-        packed_input = torch.nn.utils.rnn.pack_padded_sequence(
+    for i, batch in enumerate(sentence_loader):
+        #print(f'{batch['processed_sentence']=}')
+        #print(f'{batch['length']=}', '\n')
+
+        packed_input = pack_padded_sequence(
             input=batch['processed_sentence'],
             lengths=batch['length'],
             batch_first=True
         )
-        print(f'{packed_input.data=}')
-        print(f'{packed_input.batch_sizes=}')
 
-        unpacked_output, unpacked_length = torch.nn.utils.rnn.pad_packed_sequence(
-            sequence=packed_input,
-            batch_first=True
-        )
-        print(f'{unpacked_output=}', '\n')'''
+        packed_output, _ = model(packed_input)
 
-    n = np.array([[1, 2, 3],
-                  [4, 5, 6]])
-    t = torch.tensor(n).to(torch.long)
-    print(type(t))
-    print(t)
+        print(f'{packed_output.data=}')
+        print(f'{packed_output.batch_sizes=}')
+
+        #unpacked_output, unpacked_length = pad_packed_sequence(
+        #    sequence=packed_input,
+        #    batch_first=True
+        #)
+        #print(f'{unpacked_output=}')
+        #print(f'{unpacked_length=}', '\n')
+        #print('\n')'''
+
+    t = torch.tensor([1, 3, 2, 0]).to(torch.long)
+    print(t + 1)

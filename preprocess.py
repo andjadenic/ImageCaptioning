@@ -126,9 +126,9 @@ def preprocess_caption(raw_caption, vocab):
     padded_target = target_sequence + [vocab.pad_idx] * (vocab.L - len(target_sequence))
 
     # Convert to PyTorch Tensors
-    input_tensor = torch.tensor(padded_input, dtype=torch.long)
-    target_tensor = torch.tensor(padded_target, dtype=torch.long)
-    length_tensor = torch.tensor(len(tokens) + 1, dtype=torch.long)
+    input_tensor = torch.tensor(padded_input, dtype=torch.long).to(device)
+    target_tensor = torch.tensor(padded_target, dtype=torch.long).to(device)
+    length_tensor = torch.tensor(len(tokens) + 1, dtype=torch.long).to(device)
 
     return {'input_tensor': input_tensor,
             'length_tensor': length_tensor,
@@ -188,7 +188,7 @@ class CocoDataset(Dataset):
         transformed_img = transform(to_pil_image(raw_img))
 
         return {
-            'img_tensor': transformed_img,
+            'img_tensor': transformed_img.to(device),
             'input_tensor': preprocessed_caption['input_tensor'],
             'length_tensor': preprocessed_caption['length_tensor'],
             'target_tensor': preprocessed_caption['target_tensor']
@@ -216,8 +216,6 @@ if __name__ == '__main__':
         if i >= 5:
             break
         print(f'batch {i}:')
-        print(f'{batch['img_tensor'].mean(dim=[0, 2, 3])=}', '\n')
-        print(f'{batch['img_tensor'].std(dim=[0, 2, 3])=}', '\n')
 
         '''packed_input = torch.nn.utils.rnn.pack_padded_sequence(
             input=batch['processed_sentence'],

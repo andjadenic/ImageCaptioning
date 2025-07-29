@@ -1,13 +1,13 @@
 import nltk
-import torch
 import string
 from config import *
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from utils import *
 from torchvision import transforms
-from torchvision.transforms import functional as F
 from torchvision.transforms.functional import to_pil_image
+from model import EncoderCNN, DecoderRNN
+from torchvision.transforms import ToPILImage
 
 
 class Vocabulary:
@@ -126,9 +126,9 @@ def preprocess_caption(raw_caption, vocab):
     padded_target = target_sequence + [vocab.pad_idx] * (vocab.L - len(target_sequence))
 
     # Convert to PyTorch Tensors
-    input_tensor = torch.tensor(padded_input, dtype=torch.long).to(device)
-    target_tensor = torch.tensor(padded_target, dtype=torch.long).to(device)
-    length_tensor = torch.tensor(len(tokens) + 1, dtype=torch.long).to(device)
+    input_tensor = torch.tensor(padded_input, dtype=torch.long)
+    target_tensor = torch.tensor(padded_target, dtype=torch.long)
+    length_tensor = torch.tensor(len(tokens) + 1, dtype=torch.long)
 
     return {'input_tensor': input_tensor,
             'length_tensor': length_tensor,
@@ -185,10 +185,14 @@ class CocoDataset(Dataset):
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                  std=[0.229, 0.224, 0.225])
         ])
-        transformed_img = transform(to_pil_image(raw_img))
+
+        img = ToPILImage()(raw_img)
+        img = img.convert('RGB')
+
+        transformed_img = transform(img)
 
         return {
-            'img_tensor': transformed_img.to(device),
+            'img_tensor': transformed_img,
             'input_tensor': preprocessed_caption['input_tensor'],
             'length_tensor': preprocessed_caption['length_tensor'],
             'target_tensor': preprocessed_caption['target_tensor']
@@ -212,21 +216,16 @@ if __name__ == '__main__':
         collate_fn=collate_fn
     )
 
-    for i, batch in enumerate(train_loader):
-        if i >= 5:
-            break
-        print(f'batch {i}:')
+    for i, data in enumerate(train_dataset):
+        img = data['img_tensor'].to(device)
+        if img.shape != (3, 224, 224):
+            print(i)
+    '''
+    encoder = EncoderCNN(feature_size=feature_size).to(device)
+    decoder = DecoderRNN(embed_size=embed_size, hidden_size=hidden_size, vocab_size=len(vocabulary), num_layers=num_layers, L=vocabulary.L).to(device)
 
-        '''packed_input = torch.nn.utils.rnn.pack_padded_sequence(
-            input=batch['processed_sentence'],
-            lengths=batch['length'],
-            batch_first=True
-        )
-        print(f'{packed_input.data=}')
-        print(f'{packed_input.batch_sizes=}')
+    batch = next(iter(train_loader))['img_tensor']
+    feature_maps = encoder(batch)
+    decoder.sample(feature_maps)
+    '''
 
-        unpacked_output, unpacked_length = torch.nn.utils.rnn.pad_packed_sequence(
-            sequence=packed_input,
-            batch_first=True
-        )
-        print(f'{unpacked_output=}', '\n')'''

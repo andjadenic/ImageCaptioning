@@ -1,54 +1,68 @@
-from preprocess import target_transform
-import torch
-from model import EncoderCNN, DecoderRNN
-from preprocess import Vocabulary, preprocess_caption
-import torchvision.datasets as datasets
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
+from preprocess import *
+from model import *
 from config import *
+import torch
+torch.backends.cudnn.benchmark = True
 
 
 if __name__ == "__main__":
+    vocabulary = Vocabulary()
+    vocabulary.build_vocabulary(json_path=train_annFile)
 
+    train_dataset = CocoDataset(data_path=train_data_path,
+                                json_path=train_annFile,
+                                vocabulary=vocabulary)
 
-    loss_track = []
-    # Build the models
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        collate_fn=collate_fn,
+        pin_memory=True
+    )
+
     encoder = EncoderCNN(feature_size=feature_size).to(device)
     decoder = DecoderRNN(embed_size=embed_size,
                          hidden_size=hidden_size,
-                         vocab_size=len(vocabulary),
                          num_layers=num_layers,
-                         max_seq_length=vocabulary.L).to(device)
+                         vocabulary=vocabulary).to(device)
 
     # Define loss and optimizer
-    criterion = torch.nn.CrossEntropyLoss(ignore_index=vocabulary.pad_idx)  # Computes the cross entropy loss
-                                                        # between input logits (outputs of decoder) and target
-                                                        # one word at a time
+    criterion = torch.nn.CrossEntropyLoss()
     params = list(decoder.parameters()) + list(encoder.linear.parameters()) + list(encoder.bn.parameters())
     optimizer = torch.optim.Adam(params, lr=learning_rate)
 
-    # Train the model
-    total_step = len(train_data)
-    for epoch in range(num_epochs):
-        for i, (images, captions) in enumerate(train_loader):
-            # Preprocess captions
-            input_captions, lengths, targets = target_transform(captions, vocabulary)
+    loss_track = []
 
+    # Train the model
+    for epoch in range(num_epochs):
+        encoder.train(True)
+        decoder.train(True)
+        for i, batch in enumerate(train_loader):
+            img_tensor = batch['img_tensor'].to(device)
+            input_tensor = batch['input_tensor'].to(device)
+            length_tensor = batch['length_tensor']
+            target_tensor = batch['target_tensor'].to(device)
 
             # Forward pass
-            feature_maps = encoder(images)
-            outputs = decoder(feature_maps, input_captions)
+            feature_maps = encoder(img_tensor)
+            outputs = decoder(feature_maps, input_tensor, length_tensor)
 
             # Calculating the loss
-            loss = criterion(outputs.reshape(-1, len(vocabulary)), targets.reshape(-1))
-            print(f'{epoch=},  {loss=}')
-            loss_track.append(loss)
+            loss = criterion(outputs.reshape(-1, len(vocabulary)), target_tensor.reshape(-1))
+            print(f'{epoch=}, {i=},  {loss=}')
 
             # Backward pass
-            decoder.zero_grad()
-            encoder.zero_grad()
+            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-    torch.save(encoder.state_dict(), "trained_models/encoder.pth")
-    torch.save(decoder.state_dict(), "trained_models/decoder.pth")
+            # Validation loss
+            # model.eval()
+            # https://docs.pytorch.org/tutorials/beginner/introyt/trainingyt.html
+
+        loss_track.append(loss)
+
+        torch.save(encoder.state_dict(), encoder_path)
+        torch.save(decoder.state_dict(), decoder_path)

@@ -5,6 +5,7 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torchvision.transforms as transforms
 from PIL import Image
 from config import *
+from utils import zero_after
 
 
 class EncoderCNN(nn.Module):
@@ -22,7 +23,7 @@ class EncoderCNN(nn.Module):
         modules = resnet_layers[:-1]  # Delete the last fc layer
         self.resnet = nn.Sequential(*modules)  # ResNet slice of encoder
 
-        self.linear = nn.Linear(resnet.fc.in_features, feature_size)  # Fc layer with (2048,) input shape and (feature_size,) output shape
+        self.linear = nn.Linear(2048, feature_size)  # Fc layer with (2048, ) input shape and (feature_size,) output shape
         self.bn = nn.BatchNorm1d(feature_size, momentum=0.01)
 
         # Freeze the parameters of ResNet slice (resnet)
@@ -33,29 +34,30 @@ class EncoderCNN(nn.Module):
         """Extract feature vectors from input images"""
         features = self.resnet(images)  # size = (batch_size, 2048, 1, 1) tensor
         features = features.reshape(features.size(0), -1)  # size = (batch_size, 2048) tensor
-        features = self.bn(self.linear(features))  # size = (batch_size, feature_size) tensor
+        features = self.linear(features) # size = (batch_size, feature_size) tensor
+        features = self.bn(features)  # size = (batch_size, feature_size) tensor
         #  Encoder's learnable parameters are linear layer's parameters and batch normalization's parameters.
         return features
 
 
 class DecoderRNN(nn.Module):
-    def __init__(self, embed_size, hidden_size, vocab_size, num_layers, max_seq_length=50):
+    def __init__(self, embed_size, hidden_size, num_layers, vocabulary):
         """
         INPUTS:
         :param embed_size: word space size, this is an input size of LSTM block
                            embed_size is equal to feature_size because Encoder(image) and Embedding(word) belong to the same space
         :param hidden_size: size of hidden and cell states in LSTM block
-        :param vocab_size: number of words in vocabulary
         :param num_layers: number of stacked LSTM blocks
-        :param max_seq_length: maximum length of a caption sequence
         """
         super(DecoderRNN, self).__init__()
-        self.embed = nn.Embedding(vocab_size, embed_size)  # Embedding layer takes indexed sentence and outputs its embedding
+        self.vocabulary = vocabulary
+        self.vocab_size = len(vocabulary)
+        self.L = vocabulary.L
+
+        self.embed = nn.Embedding(self.vocab_size, embed_size)  # Embedding layer takes indexed sentence and outputs its embedding
                                                            # word_id -> ohe word_id -> We * ohe word_id
         self.lstm = nn.LSTM(embed_size, hidden_size, num_layers, batch_first=True)
-        self.linear = nn.Linear(hidden_size, vocab_size)  # final fully connected layer
-
-        self.max_seg_length = max_seq_length
+        self.linear = nn.Linear(hidden_size, self.vocab_size)  # final fully connected layer
 
     def forward(self, feature_maps, input_captions, length_captions):
         """
@@ -86,76 +88,50 @@ class DecoderRNN(nn.Module):
 
         # Pass through the LSTM
         # The hidden state and cell state are initialized to zeros by default if not provided.
-        packed_h, _ = self.lstm(packed_input)  # h.shape = (Nb, 1 + L, hidden_size)
+        packed_h, _ = self.lstm(packed_input)
+        h, _ = pad_packed_sequence(packed_h, batch_first=True, total_length=self.L+1)  # h.shape = (Nb, L + 1, hidden_size)
             # h contains the hidden states (h_t) from the last layer of the LSTM, for each t.
-
-
-        # OVDE SAM STIGLA
-
-        h, output_lengths = pad_packed_sequence(packed_h, batch_first=True)  # unpack LSTM's output
 
         # Pass the LSTM outputs h through the linear layer to get vocabulary scores
         outputs = self.linear(h)  # outputs.size = (Nb, 1 + L, vocab_size)
 
         # We use output for the caption sequence, excluding the prediction
         # based on the initial image feature input alone.
-        outputs = outputs[:, 1:, :]  # outputs.shape = (Nb, max_seq_length, vocab_size)
+        outputs = outputs[:, 1:, :]  # outputs.shape = (Nb, L, vocab_size)
         return outputs
 
-    def sample(self, features, states=None):
-        """Generate captions for given image features using greedy search."""
-        sampled_ids = []
-        outputs_all = []
-        inputs = features.unsqueeze(1)  # Add batch dimension
-                                        # inputs.shape = (batch_size, 1, embed_size)
-        for i in range(self.max_seg_length):
-            # Forward feature map through LSTM blocks
-            hiddens, states = self.lstm(inputs, states)  # hiddens.shape = (batch_size, 1, hidden_size)
+    def sample(self, feature_maps):
+        """Generate captions for given image features using greedy search.
+        feature_maps (torch.Tensor): Image features from the encoder (batch_size, embedded_size).
+        """
+        captions_list = []
+        states = (torch.zeros(num_layers, batch_size, hidden_size),
+                  torch.zeros(num_layers, batch_size, hidden_size))
+        lstm_input = feature_maps
 
-            # Output of the LSTM blocks is hiddens.
+        for i in range(self.L):
+            # Forward feature map through LSTM blocks
+            h, states = self.lstm(lstm_input, states)  # h.shape = (batch_size, hidden_size)
+
             # Forward hiddens through a linear layer to produce distribution over vocabulary words.
-            outputs_i = self.linear(hiddens.squeeze(1))  # outputs:  (batch_size, vocab_size)
+            curr_outputs = self.linear(h)  # outputs:  (batch_size, vocab_size)
 
             # Predicted word is the one with the highest probability
-            _, predicted_id_words = outputs_i.max(1)  # predicted_id_words: (batch_size)
-            sampled_ids.append(predicted_id_words)
-            outputs_all.append(outputs_i)
+            curr_ids = curr_outputs.argmax(1)  # size: (batch_size,)
+            captions_list.append(curr_ids)
 
-            # Prepare input for the next word prediction.
+            # Prepare input for the next word prediction
             # Next input is embedded current word
-            with torch.no_grad():
-                inputs = self.embed(predicted_id_words)  # inputs: (batch_size, embed_size)
-            inputs = inputs.unsqueeze(1)  # inputs: (batch_size, 1, embed_size)
+            lstm_input = self.embed(curr_ids)  # feature_maps: (batch_size, embed_size)
 
-        # Output of this function is mini-batch of sequences cosisting of indexed words
-        sampled_ids = torch.stack(sampled_ids, 1)  # sampled_ids: (batch_size, max_seq_length)
-        outputs_all = torch.stack(outputs_all, 1)
-        return outputs_all, sampled_ids
+        # Output of this function is mini-batch of sequences cosisting of indexed words before <END> token
+        output = torch.stack(captions_list, 1).to(torch.long)
+        output = zero_after(output, self.vocabulary.end_idx)
+
+        return output
 
 
-if __name__ == '__main__':
-    # Define hyper parameters
-    features_size = 100  # size of Encoder output (feature map)
 
-    # Define image preprocessing pipeline
-    transform = transforms.Compose([
-        transforms.Resize(256),  # Resize the image to 256x256
-        transforms.CenterCrop(224),  # Crop the center 224x224
-        transforms.ToTensor(),  # Convert PIL image to a PyTorch tensor
-        transforms.Normalize(  # Normalize the tensor with the ImageNet mean and standard deviation
-            mean=[0.485, 0.456, 0.406],
-            std=[0.229, 0.224, 0.225]
-        )
-    ])
-
-    img_path = f'miniCOCO/train/000000000438.jpg'
-    img = Image.open(img_path)
-    input = transform(img).unsqueeze(0)  # Add batch dimension
-
-    model1 = EncoderCNN(100)
-    model1.eval()
-    features = model1(input)
-    print(features.shape)  # (1, 100)
 
 
 

@@ -20,7 +20,7 @@ num_layers = 1
 hidden_size = 256
 
 # Training
-num_workers = 4
+num_workers = 8
 batch_size = 512
 learning_rate = 5e-5
 num_epochs = 10

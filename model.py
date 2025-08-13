@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import torchvision.models as models
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-import torchvision.transforms as transforms
-from PIL import Image
 from config import *
 from utils import zero_after
 

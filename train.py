@@ -3,6 +3,7 @@ from model import *
 from config import *
 import torch
 torch.backends.cudnn.benchmark = True
+import time
 
 
 if __name__ == "__main__":
@@ -35,6 +36,33 @@ if __name__ == "__main__":
 
     loss_track = []
 
+    # how much time it takes to do a bached forward pass?
+    start_time = time.time()
+    for i, batch in enumerate(train_loader):
+        img_tensor = batch['img_tensor'].to(device)
+        input_tensor = batch['input_tensor'].to(device)
+        length_tensor = batch['length_tensor']
+        target_tensor = batch['target_tensor'].to(device)
+
+        # Forward pass
+        feature_maps = encoder(img_tensor)
+        outputs = decoder(feature_maps, input_tensor, length_tensor)
+
+        # Calculating the loss
+        loss = criterion(outputs.reshape(-1, len(vocabulary)), target_tensor.reshape(-1))
+        #print(f'{epoch=}, {i=},  {loss=}')
+
+        # Backward pass
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        print(loss)
+        if i==1:
+            break
+    end_time = time.time()
+    print(end_time - start_time)
+
+'''
     # Train the model
     for epoch in range(num_epochs):
         encoder.train(True)
@@ -64,5 +92,9 @@ if __name__ == "__main__":
 
         loss_track.append(loss)
 
-        torch.save(encoder.state_dict(), encoder_path)
-        torch.save(decoder.state_dict(), decoder_path)
+#        torch.save(encoder.state_dict(), encoder_path)
+#        torch.save(decoder.state_dict(), decoder_path)
+'''
+
+    # 260s 2 forward passes with num_workers=4
+    # s 2 forward+backward passes with num_workers=4

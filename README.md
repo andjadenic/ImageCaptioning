@@ -1,3 +1,4 @@
+# Image Captioning using ResNet and LSTM on MC COCO Dataset
 ### Goal
 * The goal of this project is to enable machines to caption images automatically.
 * For a given image that the machine sees for the first time as input, it should generate a sentence description of that picture as output.

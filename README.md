@@ -12,7 +12,7 @@
 ### Dataset
 Data used for training the model is the [MC COCO dataset](https://cocodataset.org/).
 
-## GPU Support
+### GPU Support
 * This project utilizes GPU acceleration via <PyTorch>.  
 * Both the model and data tensors are automatically moved to the GPU if available.
 

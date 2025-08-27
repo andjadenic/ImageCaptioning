@@ -15,18 +15,19 @@ Implementation is done in PyTorch.
 
 ### Project Structure and Functionalities
 The project is organized into modular steps reflecting the image captioning pipeline:
-* `download_data.py` – scripts for downloading and preparing the MS COCO dataset.
-* `preprocess.py` – dataset preprocessing (resizing, vocabulary construction, tokenization, word-to-index mappings).
+* `download_COCO.py` – scripts for downloading and preparing the MS COCO dataset.
+* `coco_dataset_overview` - exploratory data analysis notebook.
+* `preprocess.py` – dataset preprocessing (vocabulary construction, tokenization, word-to-index mappings, COCO dataset).
 * `model.py` – encoder (ResNet) and decoder (LSTM) model definitions.
 * `train.py` – training loop with checkpointing, logging, and GPU support.
 * `evaluate.py` – evaluation and inference on test images with BLEU score computation.
-* `utils/` – helper functions for data loading, visualization, and caption formatting.
+* `utils/` – helper functions for defining hyperparameters, visualizations, and additional functions.
 
 ### Dataset
 * Training data is [**MC COCO dataset**](https://cocodataset.org/).
-* Includes 5 captions for 300k images.
+* Includes 5 captions for 330,000 images.
 * Preprocessing ensures consistent vocabulary and alignment between images and captions.
-* 
+
 ### GPU Support
 * This project utilizes **GPU acceleration** with PyTorcs.  
 * Both the model and data tensors are automatically moved to the GPU if available.

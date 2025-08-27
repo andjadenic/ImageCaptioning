@@ -9,6 +9,7 @@
 The project follows an encoder–decoder structure:
 * **Encoder**: A ResNet CNN extracts high-level image features.
 * **Decoder**: An LSTM generates captions from these features.
+
 Implementation is done in PyTorch.
 <img width="1085" height="529" alt="encoder_decoder_image_captioning_example" src="https://github.com/user-attachments/assets/af3a51b1-8c67-4640-80e5-54d91a92fe5c" />
 

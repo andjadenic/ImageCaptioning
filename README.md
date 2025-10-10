@@ -11,6 +11,9 @@ Overview of COCO 2017 dataset is given in [this blogpost](https://www.v7labs.com
 
 Dataset contains over **123,000 images, each annotated with 5 captions describing the scene**, splitted into train (118,000) and validation (5,000) subsets that can be downloaded via [COCO website](https://cocodataset.org/#download).
 
+* Height of train image varies from 51 (min) to 640 (max) pixels with a median height of 484 pixels.
+* Width of train image varies from 59 (min) to 640 (max) pixels with a median height of 640 pixels.
+
 
 ## Model architecture
 This work uses architecture described in paper: [**Show and Tell: A Neural Image Caption Generator (Vinyals et al., 2015)**](https://arxiv.org/abs/1411.4555), that follows an encoder–decoder structure:

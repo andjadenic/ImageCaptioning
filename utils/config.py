@@ -1,13 +1,11 @@
 import torch
 
 # Paths
-download_COCO_captions_train2017_json = r'C:\Users\csuser\Documents\andja_denic\ImageCaptioning\download_COCO\captions_train2017.json'
+captions_train_path = r'C:\Users\HP\AndjaDenic\ImageCaptioning\data\captions_train2017.json'
+captions_val_path = r'C:\Users\HP\AndjaDenic\ImageCaptioning\data\captions_val2017.json'
+train_imgs_path = r'C:\Users\HP\AndjaDenic\ImageCaptioning\data\train2017'
+val_imgs_path = r'C:\Users\HP\AndjaDenic\ImageCaptioning\data\val2017'
 
-train_data_path = r'C:\Users\csuser\Documents\andja_denic\ImageCaptioning\data\train_data'
-test_data_path = r'C:\Users\csuser\Documents\andja_denic\ImageCaptioning\data\test_data'
-
-train_annFile = r'C:\Users\csuser\Documents\andja_denic\ImageCaptioning\data\annotations\captions_train2017.json'  # Path to json annotation file
-test_annFile = r'C:\Users\csuser\Documents\andja_denic\ImageCaptioning\data\annotations\captions_val2017.json'
 
 encoder_path = r'trained_models/encoder.pth'
 decoder_path = r'trained_models/decoder.pth'

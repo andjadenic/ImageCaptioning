@@ -8,6 +8,7 @@ from torchvision import transforms
 from torchvision.transforms.functional import to_pil_image
 #from model import EncoderCNN, DecoderRNN
 #from torchvision.transforms import ToPILImage
+import json
 
 
 class Vocabulary:
@@ -201,7 +202,19 @@ class CocoDataset(Dataset):
 
 
 if __name__ == '__main__':
-    vocabulary = Vocabulary()
+    # Run once
+    # Make map for train images: img_id -> sample_id
+    imgId2sampleId = {}
+
+    with open(captions_train_path, 'r') as file:
+        ann = json.load(file)
+
+    imgs_ids = [ann['images'][i]['id'] for i in range(len(ann['images']))]
+    imgs_ids.sort()
+    sampleId2imgId = [imgId for imgId in imgs_ids]
+    imgId2sampleId = {imgId: for imgId in imgs_ids}
+
+    '''vocabulary = Vocabulary()
     vocabulary.build_vocabulary(json_path=train_annFile)
 
     train_dataset = CocoDataset(data_path=train_data_path,
@@ -220,7 +233,7 @@ if __name__ == '__main__':
         img = data['img_tensor'].to(device)
         if img.shape != (3, 224, 224):
             print(i)
-    '''
+    
     encoder = EncoderCNN(feature_size=feature_size).to(device)
     decoder = DecoderRNN(embed_size=embed_size, hidden_size=hidden_size, vocab_size=len(vocabulary), num_layers=num_layers, L=vocabulary.L).to(device)
 

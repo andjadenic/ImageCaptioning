@@ -131,7 +131,12 @@ class DecoderRNN(nn.Module):
 
 
 if __name__ == '__main__':
-    print("Before loading model:")
+    import json
+
+
+    with open(captions_val_path, 'r') as file:
+        train_ann = json.load(file)
+    '''print("Before loading model:")
     print(f"Allocated: {torch.cuda.memory_allocated(device) / 1024 ** 2:.2f} MB")
     print(f"Reserved:  {torch.cuda.memory_reserved(device) / 1024 ** 2:.2f} MB")
 
@@ -146,7 +151,7 @@ if __name__ == '__main__':
     print("\nAfter loading model (before training):")
     print(f"Allocated: {torch.cuda.memory_allocated(device) / 1024 ** 2:.2f} MB")
     print(f"Reserved:  {torch.cuda.memory_reserved(device) / 1024 ** 2:.2f} MB")
-
+    '''
 
 
 

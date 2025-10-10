@@ -5,9 +5,12 @@ The goal of this project is to enable machine to **caption images automatically*
 <img width="1614" height="611" alt="image_captioning_task" src="https://github.com/user-attachments/assets/95a70463-f346-46f6-b1cd-b49ce489c38b" />
 
 ## Dataset
-* Training data is [**MC COCO dataset**](https://cocodataset.org/).
-* Includes 5 captions for 330,000 images.
-* Preprocessing ensures consistent vocabulary and alignment between images and captions.
+The [COCO (Common Objects in Context)](https://cocodataset.org/#download) dataset is a large-scale image recognition dataset used for various computer vision tasks like object detection, segmentation, and captioning. COCO is benchmark dataset commonly used in machine learning—both for research and practical applications.
+
+Overview of COCO 2017 dataset is given in [this blogpost](https://www.v7labs.com/blog/coco-dataset-guide) and in [paper 'Microsoft COCO: Common Objects in Context'](https://arxiv.org/abs/1405.0312).
+
+Dataset contains over **123,000 images, each annotated with 5 captions describing the scene**, splitted into train (118,000) and validation (5,000) subsets that can be downloaded via [COCO website](https://cocodataset.org/#download).
+
 
 ## Model architecture
 This work uses architecture described in paper: [**Show and Tell: A Neural Image Caption Generator (Vinyals et al., 2015)**](https://arxiv.org/abs/1411.4555), that follows an encoder–decoder structure:

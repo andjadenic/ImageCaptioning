@@ -3,5 +3,5 @@ data/
 trained_models/
 proba.py
 .idea/
-pycache
+__pycache__/
 utils/pycache

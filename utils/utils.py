@@ -11,28 +11,37 @@ def display_image(img):
     plt.imshow(img)
     plt.show()
 
-def get_ith_sample(id, annFile, data_path):
-    with open(annFile, 'r') as file:
+def make_dataset(ann_json, data_path, new_json_path):
+    '''
+    Function reads information about images and captions
+    from ann_json and data_path
+    and saves the dataset in new_json_path
+    '''
+    with open(ann_json, 'r') as file:
         data = json.load(file)
 
-    captions_id_list = [item['id'] for item in data['annotations']]
+    dataset = []
+    for img_info in data['images']:
+        curr_img_name = img_info['file_name']
+        curr_img_id = img_info['id']
+        curr_img = 0
+        #curr_img = io.imread(os.path.join(data_path, curr_img_name))
+        curr_captions_list = []
+        for ann in data['annotations']:
+            if ann['image_id'] == curr_img_id:
+                curr_captions_list.append(ann['caption'])
 
-    ann_id = captions_id_list[id]
-    for obj in data['annotations']:
-        if obj['id'] == ann_id:
-            img_id = obj['image_id']
-            caption = obj['caption']
-            break
-    for obj in data['images']:
-        if obj['id'] == img_id:
-            img = io.imread(os.path.join(data_path, obj['file_name']))
-            break
-    return {
-        'img_id': img_id,
-        'img': img,
-        'ann_id': ann_id,
-        'caption': caption
-    }
+        curr_sample = {
+            'img_id': curr_img_id,
+            'img_name': curr_img_name,
+            'img': curr_img,
+            'captions': curr_captions_list
+        }
+        dataset.append(curr_sample)
+
+    with open(new_json_path, "w", encoding="utf-8") as f:
+        json.dump(dataset, f, indent=4, ensure_ascii=False)
+    print(f'Dataset is successfully created and saved in {new_json_path}.')
 
 def zero_after(x: torch.Tensor, id: int) -> torch.Tensor:
     mask_id = (x == id)

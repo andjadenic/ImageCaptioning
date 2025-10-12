@@ -1,10 +1,12 @@
 import torch
+from pathlib import Path
 
 # Paths
-captions_train_path = r'C:\Users\HP\AndjaDenic\ImageCaptioning\data\captions_train2017.json'
-captions_val_path = r'C:\Users\HP\AndjaDenic\ImageCaptioning\data\captions_val2017.json'
-train_imgs_path = r'C:\Users\HP\AndjaDenic\ImageCaptioning\data\train2017'
-val_imgs_path = r'C:\Users\HP\AndjaDenic\ImageCaptioning\data\val2017'
+
+captions_train_path = Path(r'D:\Faks\MASTER\image_captioning\ImageCaptioning\data\captions_train2017.json')
+train_data = Path(r'D:\Faks\MASTER\image_captioning\ImageCaptioning\data\train_data')
+train_dataset_json = Path(r'D:\Faks\MASTER\image_captioning\ImageCaptioning\data\dataset.json')
+
 
 
 encoder_path = r'trained_models/encoder.pth'

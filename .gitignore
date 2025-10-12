@@ -4,4 +4,4 @@ trained_models/
 proba.py
 .idea/
 __pycache__/
-utils/pycache
+*.pyc

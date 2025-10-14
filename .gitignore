@@ -1,9 +1,10 @@
-data/
 .venv/
-trained_models/
-proba.py
 .idea/
 __pycache__/
 *.pyc
 .idea/
+data/
+trained_models/
 preprocess/__pycache__/
+preprocess/vocab.json
+proba.py

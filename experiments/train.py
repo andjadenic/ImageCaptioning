@@ -1,5 +1,5 @@
 from preprocess.preprocess import *
-from model.model import *
+from model.models import *
 from utils.config import *
 import torch
 torch.backends.cudnn.benchmark = True
@@ -49,6 +49,7 @@ if __name__ == "__main__":
         outputs = decoder(feature_maps, input_tensor, length_tensor)
 
         # Calculating the loss
+        # outputs sadrži padd-ovane outpute!!! trebaa nekako ukloniti nule
         loss = criterion(outputs.reshape(-1, len(vocabulary)), target_tensor.reshape(-1))
         #print(f'{epoch=}, {i=},  {loss=}')
 

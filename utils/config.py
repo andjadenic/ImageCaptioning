@@ -3,14 +3,18 @@ from pathlib import Path
 
 # Paths
 
-captions_train_path = Path(r'D:\Faks\MASTER\image_captioning\ImageCaptioning\data\captions_train2017.json')
-train_data = Path(r'D:\Faks\MASTER\image_captioning\ImageCaptioning\data\train_data')
-train_dataset_json = Path(r'D:\Faks\MASTER\image_captioning\ImageCaptioning\data\dataset.json')
+# data
+captions_train_path = Path(r'C:\Users\HP\AndjaDenic\ImageCaptioning\data\captions_train2017.json')
+train_data_path = Path(r'C:\Users\HP\AndjaDenic\ImageCaptioning\data\train2017')
+train_dataset_json = Path(r'C:\Users\HP\AndjaDenic\ImageCaptioning\data\train_dataset.json')
+train_dataset_1c_json = Path(r'C:\Users\HP\AndjaDenic\ImageCaptioning\data\train_dataset_1c.json')
+
+# preprocessing
+vocab_json = Path(r'C:\Users\HP\AndjaDenic\ImageCaptioning\preprocess\vocab.json')
 
 
-
-encoder_path = r'trained_models/encoder.pth'
-decoder_path = r'trained_models/decoder.pth'
+#encoder_path = r'trained_models/encoder.pth'
+#decoder_path = r'trained_models/decoder.pth'
 
 # Hyperparameters
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

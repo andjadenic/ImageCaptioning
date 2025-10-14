@@ -4,17 +4,92 @@ from utils.config import *
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from utils import *
+from PIL import Image
 from torchvision import transforms
 from torchvision.transforms.functional import to_pil_image
 #from model import EncoderCNN, DecoderRNN
 #from torchvision.transforms import ToPILImage
 import json
+import os
+import time
+from torch.nn.utils.rnn import pad_sequence
+
+
+def make_dataset(ann_json, data_path, new_json_path):
+    '''
+    Function reads information about images and captions
+    from ann_json and data_path
+    and saves the dataset in new_json_path
+    where a single sample is an image and 5 corresponding captions
+    '''
+    start_time = time.time()
+
+    with open(ann_json, 'r') as file:
+        data = json.load(file)
+
+    dataset = []
+    for img_info in data['images']:
+        curr_img_name = img_info['file_name']
+        curr_img_id = img_info['id']
+        curr_img_path = os.path.join(data_path, curr_img_name)
+        curr_captions_list = []
+        for ann in data['annotations']:
+            if ann['image_id'] == curr_img_id:
+                curr_captions_list.append(ann['caption'])
+
+        curr_sample = {
+            'img_id': curr_img_id,
+            'img_name': curr_img_name,
+            'img_path': curr_img_path,
+            'captions': curr_captions_list
+        }
+        dataset.append(curr_sample)
+
+    with open(new_json_path, "w", encoding="utf-8") as f:
+        json.dump(dataset, f, indent=4, ensure_ascii=False)
+
+    end_time = time.time()
+    time_elapsed = end_time - start_time
+    print(f'Evaluation Dataset is successfully created in {time_elapsed:.2f} secunds and saved in {new_json_path}.')
+
+    return dataset
+
+
+def make_dataset_1c(dataset_path, dataset_1c_path):
+    '''
+    Function reads information about images and captions
+    from dataset_path
+    and saves the dataset_1c in dataset_1c_path
+    where a single sample is an image and one corresponding caption
+    '''
+    dataset = read_dataset(dataset_path)
+    dataset_1c = []
+    for sample in dataset:
+        curr_img_name = sample['img_name']
+        curr_img_id = sample['img_id']
+        curr_img_path = sample['img_path']
+        for curr_caption in sample['captions']:
+            dataset_1c.append({
+                'img_id': curr_img_id,
+                'img_name': curr_img_name,
+                'img_path': curr_img_path,
+                'caption': curr_caption
+            })
+    open(dataset_1c_path, "w", encoding="utf-8").write(json.dumps(dataset_1c))
+    print(f'Dataset 1C successfully created in {dataset_1c_path}.')
+    return dataset_1c
+
+
+def read_dataset(json_path):
+    with open(json_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    return data
 
 
 class Vocabulary:
     def __init__(self):
         self.word2idx = {}
-        self.idx2word = {}
+        self.idx2word = []
         self.idx = 0
 
         self.pad_token = '<PAD>'
@@ -27,24 +102,25 @@ class Vocabulary:
         self.end_idx = self.add_word(self.end_token)  # id(<END>) = 2
         self.unk_idx = self.add_word(self.unk_token)  # id(<UNK>) = 3
 
-        self.L = 0  # Maximum length of a caption
-
     def add_word(self, word):
         '''Adds a word to the vocabulary
         :return: index of added word'''
         if word not in self.word2idx:
             self.word2idx[word] = self.idx
-            self.idx2word[self.idx] = word
+            self.idx2word.append(word)
             self.idx += 1
             return self.idx - 1  # Return the index assigned
         return self.word2idx[word]  # Return existing index
 
-    def build_vocabulary(self, json_path):
-        '''Builds the vocabulary from provided .json annotations'''
+    def build_vocabulary(self, captions_path, vocab_path):
+        '''Builds the vocabulary from provided captions_path annotations
+        and saves word2id and id2word mappings in vocab_json'''
+        start_time = time.time()
+
         print('Building vocabulary...')
 
-        print(f"Loading annotations from {json_path}...")
-        with open(json_path, 'r', encoding='utf-8') as f:
+        print(f"Loading annotations from {captions_path}...")
+        with open(captions_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         print("Annotations loaded.")
 
@@ -62,16 +138,26 @@ class Vocabulary:
         for caption in processed_captions:
             tokenized_caption = nltk.tokenize.word_tokenize(caption)
             tokenized_captions.append(tokenized_caption)
-            if len(tokenized_caption) > L:
-                L = len(tokenized_caption)
-        self.L = L
 
         # Add all words to the vocabulary
         for caption in tokenized_captions:
             for token in caption:
                 self.add_word(token)
 
-        print(f'Vocabulary built with {len(self)} words.')
+        # Save word2id and id2word mappings
+        with open(vocab_path, 'w', encoding='utf-8') as f:
+            json.dump([self.word2idx, self.idx2word], f, indent=4, ensure_ascii=False)
+
+        end_time = time.time()
+
+        print(f'Vocabulary built in {(end_time - start_time):.2f} seconds with {len(self)} words and saved in {vocab_path}.')
+
+    def load_vocab(self, vocab_path):
+        with open(vocab_path, 'r', encoding='utf-8') as f:
+            word2id, id2word = json.load(f)
+        self.word2idx = word2id
+        self.idx2word = id2word
+        print('Vocabulary successfully loaded.')
 
     def __call__(self, word):
         '''Looks up a word's index, returns <UNK> index if not found.'''
@@ -84,24 +170,12 @@ class Vocabulary:
 
 def preprocess_caption(raw_caption, vocab):
     '''
-    Preprocesses single raw caption for DecoderRNN.
-    Pipeline: removes punctuation, converts words to lowercase, numericalizes words,
-    adds <START> and <END> tokens, adds padding
+    Preprocesses a single raw caption for DecoderRNN.
+    Pipeline: removes punctuation, converts words to lowercase, index words,
+    adds <START> and <END> tokens
 
     :param raw_captions (str): Raw caption
     :param vocab: A Vocabulary object
-
-    :return:
-    dictionary: A dictionary containing:
-        - input_tensor (torch.Tensor): [id(<START>), id(w1), ..., id(wN)]
-            Indexed and padded input sequence.
-            Includes <START> index, excludes <END> index.
-        - length_tensor (torch.Tensor): Original sequence lengths + 1.
-            Required by pack_padded_sequence for DecoderRNN's forward method.
-            size = ([batch_size, ])
-        - target_tensor (torch.Tensor):  [id(w1), ..., id(wN), id(<END>)]
-            Indexed and padded target sequences for loss calculation.
-            Excludes <START>, includes <END>.
     '''
 
     # Remove punctuation, lower case.
@@ -115,70 +189,39 @@ def preprocess_caption(raw_caption, vocab):
     full_indices = [vocab.start_idx] + caption_indices + [vocab.end_idx]   # Includes <START> and <END> indexes:
                                                          # [id(<START>), id(w1), id(w2), ..., id(wN), id(<END>)]
 
-    # Prepare Input and Target Sequence (before padding)
-    input_sequence = full_indices[:-1]  # [id(<START>), id(w1), id(w2), ..., id(wN)]
-    target_sequence = full_indices[1:]  # [id(w1), id(w2), ..., id(wN), id(<END>)]
+    # Convert to PyTorch Tensor
+    output_tensor = torch.tensor(full_indices, dtype=torch.long)
 
-    # Pad Input and Target Sequences
-    # Pad input sequence to [id(<START>), id(w1), id(w2), ..., id(wN), id(<PAD>), ..., id(<PAD>)]
-    padded_input = input_sequence + [vocab.pad_idx] * (vocab.L - len(input_sequence))
-
-    # Pad target sequence to  [id(w1), id(w2), ..., id(wN), id(<END>), id(<PAD>), ..., id(<PAD>)]
-    padded_target = target_sequence + [vocab.pad_idx] * (vocab.L - len(target_sequence))
-
-    # Convert to PyTorch Tensors
-    input_tensor = torch.tensor(padded_input, dtype=torch.long)
-    target_tensor = torch.tensor(padded_target, dtype=torch.long)
-    length_tensor = torch.tensor(len(tokens) + 1, dtype=torch.long)
-
-    return {'input_tensor': input_tensor,
-            'length_tensor': length_tensor,
-            'target_tensor': target_tensor}
-
-
-def collate_fn(input_batch):
-    '''Convert list of getitem's returns into mini-batch torch tensors in descending order by length.'''
-    input_batch.sort(key=lambda x: x['length_tensor'].item(), reverse=True)
-
-    img_tensor = [item['img_tensor'] for item in input_batch]
-    input_tensor = [item['input_tensor'] for item in input_batch]
-    length_tensor = [item['length_tensor'] for item in input_batch]
-    target_tensor = [item['target_tensor'] for item in input_batch]
-
-    return {
-        'img_tensor': torch.stack(img_tensor).to(torch.float),
-        'input_tensor': torch.stack(input_tensor).to(torch.long),
-        'length_tensor': torch.stack(length_tensor).to(torch.long),
-        'target_tensor': torch.stack(target_tensor).to(torch.long)
-    }
+    return output_tensor
 
 
 class CocoDataset(Dataset):
-    def __init__(self, data_path, json_path, vocabulary):
+    '''
+    CHANGE
+    In this dataset single sample is an image and its 5 corresponding caption
+    '''
+    def __init__(self, data_path, dataset_path, vocabulary):
         self.data_path = data_path
-        self.json_path = json_path
+        self.dataset_path = dataset_path
 
         self.vocabulary = vocabulary
         self.word2idx = vocabulary.word2idx
         self.idx2word = vocabulary.idx2word
-        self.L = vocabulary.L
         self.vocab_size = len(vocabulary)
 
-        with open(train_annFile, 'r') as file:
-            data = json.load(file)
-        self.captions_id_list = [item['id'] for item in data['annotations']]
+        self.dataset = read_dataset(self.data_path)
 
     def __len__(self):
-        return len(self.captions_id_list)
+        return len(self.dataset)
 
-    def __getitem__(self, idx):
-        sample = get_ith_sample(id=idx, annFile=self.json_path, data_path=self.data_path)
+    def __getitem__(self, id):
+        sample = self.dataset[id]
 
-        raw_img = sample['img']
-        raw_caption = sample['caption']
+        img_path = sample['img_path']
+        raw_captions = sample['captions']
 
-        preprocessed_caption = preprocess_caption(raw_caption, self.vocabulary)
-
+        # Preprocess the image
+        raw_img = Image.open(img_path)
         transform = transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(224),
@@ -186,50 +229,109 @@ class CocoDataset(Dataset):
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                  std=[0.229, 0.224, 0.225])
         ])
+        img = transform(raw_img)
 
-        img = ToPILImage()(raw_img)
-        img = img.convert('RGB')
+        # Preprocess raw captions
+        #preprocessed_caption = preprocess_caption(raw_caption, self.vocabulary)
+        # DODAJ KAKO DA SE SJEDINE INDEKSIRANI OPISI
 
-        transformed_img = transform(img)
+        return
+
+
+class CocoDataset1c(Dataset):
+    '''
+    In this dataset single sample is an image and a single corresponding captions
+    '''
+    def __init__(self, data_path, dataset_1c_path, vocabulary):
+        self.data_path = data_path
+        self.dataset_1c_path = dataset_1c_path
+
+        self.vocabulary = vocabulary
+        self.word2idx = vocabulary.word2idx
+        self.idx2word = vocabulary.idx2word
+        self.vocab_size = len(vocabulary)
+
+        self.dataset_1c = read_dataset(self.dataset_1c_path)
+
+    def __len__(self):
+        return len(self.dataset_1c)
+
+    def __getitem__(self, id):
+        sample = self.dataset_1c[id]
+
+        img_path = sample['img_path']
+        raw_caption = sample['caption']
+
+        # Preprocess the image
+        raw_img = Image.open(img_path)
+        transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])
+        ])
+        img = transform(raw_img)
+
+        # Preprocess raw caption
+        caption = preprocess_caption(raw_caption, self.vocabulary)
+        length = len(caption) - 2
 
         return {
-            'img_tensor': transformed_img,
-            'input_tensor': preprocessed_caption['input_tensor'],
-            'length_tensor': preprocessed_caption['length_tensor'],
-            'target_tensor': preprocessed_caption['target_tensor']
+            'img_tensor': img,
+            'cap_tensor': caption,
+            'length_tensor': torch.tensor(length).to(torch.long)
         }
 
 
+def collate_fn_1d(samples_list):
+    samples_list.sort(key=lambda x: x['length_tensor'].item(), reverse=True)
+
+    img_tensor = [item['img_tensor'] for item in samples_list]
+    cap_tensor = [item['cap_tensor'] for item in samples_list]
+    length_tensor = [item['length_tensor'] for item in samples_list]
+
+    return {
+        'img_tensor': torch.stack(img_tensor).to(torch.float),
+        'cap_tensor': pad_sequence(cap_tensor, batch_first=True).to(torch.long),
+        'length_tensor': torch.stack(length_tensor).to(torch.long)
+    }
+
 
 if __name__ == '__main__':
+    # Make datasets
+    # train_dataset's sample is an image with 5 corresponding captions
+    # train_dataset_1c's sample is an image with a single corresponding captions
     # Run once
-    # Make map for train images: img_id -> sample_id
-    imgId2sampleId = {}
+    '''train_dataset = make_dataset(ann_json=captions_train_path,
+                                    data_path=train_data_path,
+                                    new_json_path=train_dataset_json)
+        make_dataset_1c = make_dataset_1c(dataset_path=train_dataset_json,
+                                      dataset_1c_path=train_dataset_1c_json)'''
+    train_dataset = read_dataset(train_dataset_json)
+    train_dataset_1c = read_dataset(train_dataset_1c_json)
 
-    with open(captions_train_path, 'r') as file:
-        ann = json.load(file)
+    # Make vocabulary
+    vocabulary = Vocabulary()
+    # Build vocabulary out of training data (run only once)
+    '''nltk.download('punkt_tab')
+    vocabulary.build_vocabulary(captions_path=captions_train_path,
+                                vocab_path=vocab_json)'''
+    vocabulary.load_vocab(vocab_json)
 
-    imgs_ids = [ann['images'][i]['id'] for i in range(len(ann['images']))]
-    imgs_ids.sort()
-    sampleId2imgId = [imgId for imgId in imgs_ids]
-    imgId2sampleId = {imgId: for imgId in imgs_ids}
+    train_dataset_1c = CocoDataset1c(data_path=train_data_path,
+                                    dataset_1c_path=train_dataset_1c_json,
+                                    vocabulary=vocabulary)
 
-    '''vocabulary = Vocabulary()
-    vocabulary.build_vocabulary(json_path=train_annFile)
-
-    train_dataset = CocoDataset(data_path=train_data_path,
-                                json_path=train_annFile,
-                                vocabulary=vocabulary)
-
-    train_loader = DataLoader(
-        train_dataset,
+    train_loader_1c = DataLoader(
+        train_dataset_1c,
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
-        collate_fn=collate_fn
+        collate_fn=collate_fn_1d
     )
 
-    for i, data in enumerate(train_dataset):
+    '''for i, data in enumerate(train_dataset):
         img = data['img_tensor'].to(device)
         if img.shape != (3, 224, 224):
             print(i)

@@ -82,14 +82,15 @@ class DecoderRNN(nn.Module):
         # The image I is only input once, at t = −1, to inform the LSTM about the image contents threw input x_-1.
         # source: https://arxiv.org/pdf/1411.4555
 
-        lengths = length_captions + 1  # after adding the image
+        lengths = length_captions + 1  # after adding the image features
         packed_input = pack_padded_sequence(embeddings, lengths, batch_first=True)  # removes padding and optimizes RNN processing
 
         # Pass through the LSTM
         # The hidden state and cell state are initialized to zeros by default if not provided.
         packed_h, _ = self.lstm(packed_input)
-        h, _ = pad_packed_sequence(packed_h, batch_first=True, total_length=self.L+1)  # h.shape = (Nb, L + 1, hidden_size)
-            # h contains the hidden states (h_t) from the last layer of the LSTM, for each t.
+        h, _ = pad_packed_sequence(packed_h, batch_first=True)  # h.shape = (Nb, L + 1, hidden_size)
+            # L is the length of the longest caption in the batch
+            # h contains the hidden states (h_t) from the top layer of the LSTM, for each t.
 
         # Pass the LSTM outputs h through the linear layer to get vocabulary scores
         outputs = self.linear(h)  # outputs.size = (Nb, 1 + L, vocab_size)
@@ -97,7 +98,7 @@ class DecoderRNN(nn.Module):
         # We use output for the caption sequence, excluding the prediction
         # based on the initial image feature input alone.
         outputs = outputs[:, 1:, :]  # outputs.shape = (Nb, L, vocab_size)
-        return outputs
+        return outputs, lengths# Mislim da treba i lengths da se šalje nazad?
 
     def sample(self, feature_maps):
         """Generate captions for given image features using greedy search.

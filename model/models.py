@@ -51,39 +51,43 @@ class DecoderRNN(nn.Module):
         super(DecoderRNN, self).__init__()
         self.vocabulary = vocabulary
         self.vocab_size = len(vocabulary)
-        self.L = vocabulary.L
 
         self.embed = nn.Embedding(self.vocab_size, embed_size)  # Embedding layer takes indexed sentence and outputs its embedding
                                                            # word_id -> ohe word_id -> We * ohe word_id
         self.lstm = nn.LSTM(embed_size, hidden_size, num_layers, batch_first=True)
         self.linear = nn.Linear(hidden_size, self.vocab_size)  # final fully connected layer
 
-    def forward(self, feature_maps, input_captions, length_captions):
+    def forward(self, feature_maps, captions, length_captions):
         """
         Forward pass of the decoder.
 
         Args:
             feature_maps (torch.Tensor): Image features from the encoder (batch_size, embedded_size).
-            input_captions (torch.Tensor): Input captions (batch_size, caption_length).
-            length_captions (torch.Tensor): Caption lengths (batch_size,).
+            captions (torch.Tensor): Captions (batch_size, L).
+            length_captions (torch.Tensor): Caption lengths (without special tokens <START> and <END>) (batch_size,).
 
         Returns:
             torch.Tensor: Predicted scores for each vocabulary word at each time step
                           (batch_size, caption_length, vocab_size).
         """
+        # Prepare captions for input: [id(<START>), id(<w1>), id(<w2>), ..., id(<w_l>)]
+        packed_input_captions = pack_padded_sequence(captions, length_captions + 1, batch_first=True)
+        input_captions, input_lengths = pad_packed_sequence(packed_input_captions, batch_first=True)
+        # input_captions.shape = (batch_size, L + 1)
+
         embeddings = self.embed(input_captions)  # embedded representations of the current batch of input captions
-                                                 # embeddings.shape = (batch_size, L, embed_size)
+                                                 # embeddings.shape = (batch_size, L + 1, embed_size)
         # feature_maps.size = (Nb, embed_size)
         embeddings = torch.cat((feature_maps.unsqueeze(1), embeddings), 1)  # feature_maps are concatenated to embeddings
-                                                                                        # embeddings.size = (Nb, L + 1, embed_size)
+                                                                                        # embeddings.size = (Nb, L + 2, embed_size)
                                                                                         # embeddings = [feature_map, <start>, w1, w2, ..., wN, <pad>, ..., <pad>]
         # Both the image and the words are mapped to the same space, the image by using the encoder (ResNet + fcl + bnl),
         # the words by using word embedding We (fcl).
         # The image I is only input once, at t = −1, to inform the LSTM about the image contents threw input x_-1.
         # source: https://arxiv.org/pdf/1411.4555
 
-        lengths = length_captions + 1  # after adding the image features
-        packed_input = pack_padded_sequence(embeddings, lengths, batch_first=True)  # removes padding and optimizes RNN processing
+        input_lengths = input_lengths + 1  # after adding the image features
+        packed_input = pack_padded_sequence(embeddings, input_lengths, batch_first=True)  # removes padding and optimizes RNN processing
 
         # Pass through the LSTM
         # The hidden state and cell state are initialized to zeros by default if not provided.
@@ -93,12 +97,14 @@ class DecoderRNN(nn.Module):
             # h contains the hidden states (h_t) from the top layer of the LSTM, for each t.
 
         # Pass the LSTM outputs h through the linear layer to get vocabulary scores
-        outputs = self.linear(h)  # outputs.size = (Nb, 1 + L, vocab_size)
+        padded_outputs = self.linear(h)  # outputs.size = (Nb, L + 2, vocab_size)
 
         # We use output for the caption sequence, excluding the prediction
         # based on the initial image feature input alone.
-        outputs = outputs[:, 1:, :]  # outputs.shape = (Nb, L, vocab_size)
-        return outputs, lengths# Mislim da treba i lengths da se šalje nazad?
+        padded_outputs = padded_outputs[:, 1:, :]  # outputs.shape = (Nb, L + 1, vocab_size)
+
+        outputs_lengths = input_lengths
+        return padded_outputs, outputs_lengths
 
     def sample(self, feature_maps):
         """Generate captions for given image features using greedy search.
@@ -129,31 +135,3 @@ class DecoderRNN(nn.Module):
         output = zero_after(output, self.vocabulary.end_idx)
 
         return output
-
-
-if __name__ == '__main__':
-    import json
-
-
-    with open(captions_val_path, 'r') as file:
-        train_ann = json.load(file)
-    '''print("Before loading model:")
-    print(f"Allocated: {torch.cuda.memory_allocated(device) / 1024 ** 2:.2f} MB")
-    print(f"Reserved:  {torch.cuda.memory_reserved(device) / 1024 ** 2:.2f} MB")
-
-    vocabulary = Vocabulary()
-
-    encoder = EncoderCNN(feature_size=feature_size).to(device)
-    decoder = DecoderRNN(embed_size=embed_size,
-                         hidden_size=hidden_size,
-                         num_layers=num_layers,
-                         vocabulary=vocabulary).to(device)
-
-    print("\nAfter loading model (before training):")
-    print(f"Allocated: {torch.cuda.memory_allocated(device) / 1024 ** 2:.2f} MB")
-    print(f"Reserved:  {torch.cuda.memory_reserved(device) / 1024 ** 2:.2f} MB")
-    '''
-
-
-
-

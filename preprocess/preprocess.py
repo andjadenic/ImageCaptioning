@@ -1,14 +1,10 @@
 import nltk
 import string
 from utils.config import *
-from torch.utils.data import Dataset
-from torch.utils.data import DataLoader
-from utils import *
+from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 from torchvision import transforms
-from torchvision.transforms.functional import to_pil_image
-#from model import EncoderCNN, DecoderRNN
-#from torchvision.transforms import ToPILImage
+from model.models import *
 import json
 import os
 import time
@@ -221,7 +217,7 @@ class CocoDataset(Dataset):
         raw_captions = sample['captions']
 
         # Preprocess the image
-        raw_img = Image.open(img_path)
+        raw_img = Image.open(img_path).convert('RGB')
         transform = transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(224),
@@ -263,7 +259,7 @@ class CocoDataset1c(Dataset):
         raw_caption = sample['caption']
 
         # Preprocess the image
-        raw_img = Image.open(img_path)
+        raw_img = Image.open(img_path).convert('RGB')
         transform = transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(224),
@@ -308,8 +304,6 @@ if __name__ == '__main__':
                                     new_json_path=train_dataset_json)
         make_dataset_1c = make_dataset_1c(dataset_path=train_dataset_json,
                                       dataset_1c_path=train_dataset_1c_json)'''
-    train_dataset = read_dataset(train_dataset_json)
-    train_dataset_1c = read_dataset(train_dataset_1c_json)
 
     # Make vocabulary
     vocabulary = Vocabulary()
@@ -317,30 +311,4 @@ if __name__ == '__main__':
     '''nltk.download('punkt_tab')
     vocabulary.build_vocabulary(captions_path=captions_train_path,
                                 vocab_path=vocab_json)'''
-    vocabulary.load_vocab(vocab_json)
-
-    train_dataset_1c = CocoDataset1c(data_path=train_data_path,
-                                    dataset_1c_path=train_dataset_1c_json,
-                                    vocabulary=vocabulary)
-
-    train_loader_1c = DataLoader(
-        train_dataset_1c,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=num_workers,
-        collate_fn=collate_fn_1d
-    )
-
-    '''for i, data in enumerate(train_dataset):
-        img = data['img_tensor'].to(device)
-        if img.shape != (3, 224, 224):
-            print(i)
-    
-    encoder = EncoderCNN(feature_size=feature_size).to(device)
-    decoder = DecoderRNN(embed_size=embed_size, hidden_size=hidden_size, vocab_size=len(vocabulary), num_layers=num_layers, L=vocabulary.L).to(device)
-
-    batch = next(iter(train_loader))['img_tensor']
-    feature_maps = encoder(batch)
-    decoder.sample(feature_maps)
-    '''
 

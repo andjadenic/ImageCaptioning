@@ -7,13 +7,32 @@ The goal of this project is to enable machine to **caption images automatically*
 ## Dataset
 The [COCO (Common Objects in Context)](https://cocodataset.org/#download) dataset is a large-scale image recognition dataset used for various computer vision tasks like object detection, segmentation, and captioning. COCO is benchmark dataset commonly used in machine learning—both for research and practical applications.
 
-Overview of COCO 2017 dataset is given in [this blogpost](https://www.v7labs.com/blog/coco-dataset-guide) and in [paper 'Microsoft COCO: Common Objects in Context'](https://arxiv.org/abs/1405.0312).
+Exploratory Data Analysis (EDA) of MC COCO 2017 dataset is given in [EDA.ipynb](https://github.com/andjadenic/ImageCaptioning/blob/main/EDA/EDA.ipynb).
 
-Dataset contains over **123,000 images, each annotated with 5 captions describing the scene**, splitted into train (118,000) and validation (5,000) subsets that can be downloaded via [COCO website](https://cocodataset.org/#download).
+Dataset contains over **$123,000$ images, each annotated with $5$ captions describing the scene**, splitted into train ($118,000$) and validation ($5,000$) subsets that can be downloaded via [COCO website](https://cocodataset.org/#download).
 
-* Height of train image varies from 51 (min) to 640 (max) pixels with a median height of 484 pixels.
-* Width of train image varies from 59 (min) to 640 (max) pixels with a median height of 640 pixels.
+* Height and width of train image varies from $51$ (min) to $640$ (max) and from $59$ (min) to $640$ (max) pixels.
+* $99.7%$ of images have 5 captions, and the rest of them have $6$ and $7$ captions.
+* Vocabulary built out of captions from training dataset has $29,077$ tokens (words).
+* Number of words per caption varies from $5$ to $49$ with median of $10$.
 
+### Data Preprocessing
+**Image preprocessing** pipeline prepares image for encoder:
+1. Resizing so that the shortest side is $256$ pixels.
+2. Cropping a $224 \times 224$ patch from the center of the resized image.
+3. Converting image into a PyTorch tensor.
+4. Scaling pixel values from $[0, 255]$ into $[0.0, 1.0]$.
+5. Normalizing the tensor image channel-wise so the mean is $[0.485, 0.456, 0.406]$ and the standard deviation is $[0.229, 0.224, 0.225]$.
+
+**Caption preprocessing** pipeline prepares caption for decoder:
+1. Removal of punctuation marks.
+2. All letters are converted to lowercase.
+3. The description is tokenized. Each caption (string) is converted into a list of words (strings).
+4. Words are indexed. Each description becomes a list of indices.
+5. Special tokens indicating the beginning ($1$) and end ($2$) are added. Each caption becomes a list of indices starting with $1$ and ending with $2$.
+6. Descriptions are padded with special tokens ($0$)) so that each description has the same length $L$.
+
+Preprocessing pipelines are defined in [preprocess/preprocess.py](https://github.com/andjadenic/ImageCaptioning/blob/main/preprocess/preprocess.py).
 
 ## Model architecture
 This work uses architecture described in paper: [**Show and Tell: A Neural Image Caption Generator (Vinyals et al., 2015)**](https://arxiv.org/abs/1411.4555), that follows an encoder–decoder structure:

@@ -1,10 +1,9 @@
 import nltk
 import string
 from utils.config import *
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from PIL import Image
 from torchvision import transforms
-from model.models import *
 import json
 import os
 import time
@@ -132,7 +131,7 @@ class Vocabulary:
         tokenized_captions = []
         L = 0
         for caption in processed_captions:
-            tokenized_caption = nltk.tokenize.word_tokenize(caption)
+            tokenized_caption = caption.split()
             tokenized_captions.append(tokenized_caption)
 
         # Add all words to the vocabulary
@@ -178,10 +177,10 @@ def preprocess_caption(raw_caption, vocab):
     translator = str.maketrans('', '', string.punctuation)
     processed_caption = raw_caption.lower().translate(translator)
 
-    tokens = nltk.word_tokenize(processed_caption.lower())
+    tokens = processed_caption.lower().split()
 
     # Numericalize, Add Special Tokens (<START>, <END>)
-    caption_indices = [vocab(token) for token in tokens]  # Maps tokens into indexes: [id(w1), id(w2), ..., id(wN)]
+    caption_indices = [vocab(token) for token in tokens if vocab(token) != vocab.unk_idx]  # Maps tokens into indexes: [id(w1), id(w2), ..., id(wN)]
     full_indices = [vocab.start_idx] + caption_indices + [vocab.end_idx]   # Includes <START> and <END> indexes:
                                                          # [id(<START>), id(w1), id(w2), ..., id(wN), id(<END>)]
 
@@ -234,11 +233,20 @@ class CocoDataset(Dataset):
         return
 
 
+transform_img = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])
+        ])
+
+
 class CocoDataset1c(Dataset):
     '''
     In this dataset single sample is an image and a single corresponding captions
     '''
-    def __init__(self, data_path, dataset_1c_path, vocabulary):
+    def __init__(self, data_path, dataset_1c_path, vocabulary, transform=None, target_transform=None):
         self.data_path = data_path
         self.dataset_1c_path = dataset_1c_path
 
@@ -248,6 +256,9 @@ class CocoDataset1c(Dataset):
         self.vocab_size = len(vocabulary)
 
         self.dataset_1c = read_dataset(self.dataset_1c_path)
+
+        self.transform = transform
+        self.target_transform = target_transform
 
     def __len__(self):
         return len(self.dataset_1c)
@@ -260,18 +271,13 @@ class CocoDataset1c(Dataset):
 
         # Preprocess the image
         raw_img = Image.open(img_path).convert('RGB')
-        transform = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                 std=[0.229, 0.224, 0.225])
-        ])
-        img = transform(raw_img)
+        if self.transform is not None:
+            img = self.transform(raw_img)
 
         # Preprocess raw caption
-        caption = preprocess_caption(raw_caption, self.vocabulary)
-        length = len(caption) - 2
+        if self.target_transform is not None:
+            caption = self.target_transform(raw_caption, self.vocabulary)
+        length = caption.shape[0] - 2
 
         return {
             'img_tensor': img,
@@ -295,15 +301,19 @@ def collate_fn_1d(samples_list):
 
 
 if __name__ == '__main__':
-    # Make datasets
+    # Make JSON dataset files for training and validation data (Run once)
     # train_dataset's sample is an image with 5 corresponding captions
     # train_dataset_1c's sample is an image with a single corresponding captions
-    # Run once
     '''train_dataset = make_dataset(ann_json=captions_train_path,
                                     data_path=train_data_path,
                                     new_json_path=train_dataset_json)
         make_dataset_1c = make_dataset_1c(dataset_path=train_dataset_json,
-                                      dataset_1c_path=train_dataset_1c_json)'''
+                                      dataset_1c_path=train_dataset_1c_json)
+    val_dataset = make_dataset(ann_json=captions_val_path,
+                               data_path=val_data_path,
+                               new_json_path=val_dataset_json)
+    val_dataset_1c = make_dataset_1c(dataset_path=val_dataset_json,
+                                     dataset_1c_path=val_dataset_1c_json)'''
 
     # Make vocabulary
     vocabulary = Vocabulary()

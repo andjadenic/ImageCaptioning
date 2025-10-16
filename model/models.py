@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torchvision.models as models
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-from utils.config import *
 from utils.utils import zero_after
 from preprocess.preprocess import *
 

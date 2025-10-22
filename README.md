@@ -41,15 +41,14 @@ This work uses architecture described in paper: [**Show and Tell: A Neural Image
 
 <img width="1085" height="529" alt="encoder_decoder_image_captioning_example" src="https://github.com/user-attachments/assets/af3a51b1-8c67-4640-80e5-54d91a92fe5c" />
 
-## Project Structure and Functionalities
-The project is organized into modular steps reflecting the image captioning pipeline:
-* `download_COCO.py` – scripts for downloading and preparing the MS COCO dataset.
-* `coco_dataset_overview` - exploratory data analysis notebook.
-* `preprocess.py` – dataset preprocessing (vocabulary construction, tokenization, word-to-index mappings, COCO dataset).
-* `model.py` – encoder (ResNet) and decoder (LSTM) model definitions.
-* `train.py` – training loop with checkpointing, logging, and GPU support.
-* `evaluate.py` – evaluation and inference on test images with BLEU score computation.
-* `utils/` – helper functions for defining hyperparameters, visualizations, and additional functions.
+## Training
+Training is done in $10$ epochs using gradient descent and Adam optimizer with a learning rate $10^{−3}$. The batch size was
+$64$.
+In each epoch, the average loss function is calculated on the training and validation datasets. The model with the smallest epoch average loss function on the validation dataset is saved. The saved model is used for inference and evaluation.
+The model was trained on a computer with an 8 GB NVIDIA Quadro RTX 4000 graphics card, a processor with 8 cores and 16 threads, and 64GB of RAM.
+
+## Evaluation
+The trained model is evaluated on the test dataset. The values ​​of the following metrics are recorded: BLEU-1, BLEU-2, BLEU-3, BLEU-4, ROUGE-L and CIDEr.
 
 ## GPU Support
 * This project utilizes **GPU acceleration** with PyTorcs.  

@@ -59,9 +59,8 @@ The project is organized into modular steps reflecting the image captioning pipe
 This project requires the following Python packages:
 * `torch`
 * `torchvision`
-* `pycocotools`
-* `numpy`
-* `matplotlib`
-* `skimage`
-* `nltk`
- 
+* `PIL`
+* `sckit-image`
+* `statistics`
+* `pycocoevalcap`
+* `matplotlib` 

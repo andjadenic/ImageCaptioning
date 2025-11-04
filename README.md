@@ -1,7 +1,7 @@
 # Image Captioning using ResNet and LSTM on MC COCO Dataset
 This is the project I did for my master theses.
 * [Master theses](https://github.com/andjadenic/ImageCaptioning/blob/main/Master_rad.pdf)
-* [YouTube video](https://youtu.be/bfHZcrYQxHU?si=UmBoK0rrxRMaRrIK) of defending master thesis
+* [YouTube video](https://youtu.be/bfHZcrYQxHU?si=UmBoK0rrxRMaRrIK) of defending master:
 
 [![Watch the video](https://img.youtube.com/vi/bfHZcrYQxHU/hqdefault.jpg)](https://www.youtube.com/watch?v=bfHZcrYQxHU)
 

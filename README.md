@@ -3,7 +3,7 @@ This is the project I did for my master theses.
 * [Master theses](https://github.com/andjadenic/ImageCaptioning/blob/main/Master_rad.pdf)
 * [YouTube video](https://youtu.be/bfHZcrYQxHU?si=UmBoK0rrxRMaRrIK) of defending master thesis
 
-[![Watch the video](https://img.youtube.com/vi/bfHZcrYQxHU?si=UmBoK0rrxRMaRrIK/hqdefault.jpg)]
+[![Watch the video](https://img.youtube.com/vi/bfHZcrYQxHU/hqdefault.jpg)](https://www.youtube.com/watch?v=bfHZcrYQxHU)
 
 ## Project description
 The goal of this project is to enable machine to **caption images automatically**, based on a given dataset of image-sentence pairs. The project uses a **supervised machine learning** paradigm.

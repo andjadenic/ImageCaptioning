@@ -1,4 +1,8 @@
 # Image Captioning using ResNet and LSTM on MC COCO Dataset
+This is the project I did for my master theses.
+* [Master theses](https://github.com/andjadenic/ImageCaptioning/blob/main/Master_rad.pdf)
+* [YouTube video](https://youtu.be/bfHZcrYQxHU?si=UmBoK0rrxRMaRrIK) of defending master thesis
+
 ## Project description
 The goal of this project is to enable machine to **caption images automatically**, based on a given dataset of image-sentence pairs. The project uses a **supervised machine learning** paradigm.
 * For a given image that the machine sees for the first time as input, it should generate a sentence description of that picture as output.

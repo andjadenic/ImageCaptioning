@@ -48,7 +48,14 @@ In each epoch, the average loss function is calculated on the training and valid
 The model was trained on a computer with an 8 GB NVIDIA Quadro RTX 4000 graphics card, a processor with 8 cores and 16 threads, and 64GB of RAM.
 
 ## Evaluation
-The trained model is evaluated on the test dataset. The values ​​of the following metrics are recorded: BLEU-1, BLEU-2, BLEU-3, BLEU-4, ROUGE-L and CIDEr.
+The trained model is evaluated on the test dataset. Achived evaluation scores are obtained on test dataset:
+
+* BLEU-1 = 68.36
+* BLEU-2 = 50.35
+* BLEU-3 = 35.70
+* BLEU-4 = 25.23
+* ROUGE-L = 49.51
+* CIDEr = 82.62 
 
 ## GPU Support
 * This project utilizes **GPU acceleration** with PyTorcs.  

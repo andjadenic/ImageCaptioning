@@ -11,22 +11,22 @@ The goal of this project is to enable machine to **caption images automatically*
 <img width="1614" height="611" alt="image_captioning_task" src="https://github.com/user-attachments/assets/95a70463-f346-46f6-b1cd-b49ce489c38b" />
 
 ## Dataset
-The [COCO (Common Objects in Context)](https://cocodataset.org/#download) dataset is a large-scale image recognition dataset used for various computer vision tasks like object detection, segmentation, and captioning. COCO is benchmark dataset commonly used in machine learning—both for research and practical applications.
+The [COCO (Common Objects in Context)](https://cocodataset.org/#download) dataset is a large-scale image recognition dataset used for tasks such as object detection, segmentation, and captioning. COCO is a benchmark dataset commonly used in machine learning, both for research and practical applications.
 
-Exploratory Data Analysis (EDA) of MC COCO 2017 dataset is given in [EDA.ipynb](https://github.com/andjadenic/ImageCaptioning/blob/main/EDA/EDA.ipynb).
+Exploratory Data Analysis (EDA) of the MC COCO 2017 dataset is given in [EDA.ipynb](https://github.com/andjadenic/ImageCaptioning/blob/main/EDA/EDA.ipynb).
 
-Dataset contains over **$123,000$ images, each annotated with $5$ captions describing the scene**, splitted into train ($118,000$) and validation ($5,000$) subsets that can be downloaded via [COCO website](https://cocodataset.org/#download).
+The dataset contains over **$123,000$ images, each annotated with $5$ captions describing the scene**, splitted into train ($118,000$) and validation ($5,000$) subsets that can be downloaded via [COCO website](https://cocodataset.org/#download).
 
 * Height and width of train image varies from $51$ (min) to $640$ (max) and from $59$ (min) to $640$ (max) pixels.
 * $99.7%$ of images have 5 captions, and the rest of them have $6$ and $7$ captions.
-* Vocabulary built out of captions from training dataset has $29,077$ tokens (words).
+* Vocabulary built out of captions from the training dataset has $29,077$ tokens (words).
 * Number of words per caption varies from $5$ to $49$ with median of $10$.
 
 ### Data Preprocessing
-**Image preprocessing** pipeline prepares image for encoder:
+**Image preprocessing** pipeline prepares the image for the encoder:
 1. Resizing so that the shortest side is $256$ pixels.
 2. Cropping a $224 \times 224$ patch from the center of the resized image.
-3. Converting image into a PyTorch tensor.
+3. Converting the image into a PyTorch tensor.
 4. Scaling pixel values from $[0, 255]$ into $[0.0, 1.0]$.
 5. Normalizing the tensor image channel-wise so the mean is $[0.485, 0.456, 0.406]$ and the standard deviation is $[0.229, 0.224, 0.225]$.
 
@@ -40,12 +40,21 @@ Dataset contains over **$123,000$ images, each annotated with $5$ captions descr
 
 Preprocessing pipelines are defined in [preprocess/preprocess.py](https://github.com/andjadenic/ImageCaptioning/blob/main/preprocess/preprocess.py).
 
+The dataset is split into $118,000$ samples for training, $2,500$ for validation, and $2,500$ for testing.
+
 ## Model architecture
-This work uses architecture described in paper: [**Show and Tell: A Neural Image Caption Generator (Vinyals et al., 2015)**](https://arxiv.org/abs/1411.4555), that follows an encoder–decoder structure:
+This work uses the architecture described in the paper: [**Show and Tell: A Neural Image Caption Generator (Vinyals et al., 2015)**](https://arxiv.org/abs/1411.4555), which follows an encoder–decoder structure:
 * **Encoder**: A ResNet CNN extracts high-level image features.
 * **Decoder**: An LSTM generates captions from these features.
 
 <img width="1085" height="529" alt="encoder_decoder_image_captioning_example" src="https://github.com/user-attachments/assets/af3a51b1-8c67-4640-80e5-54d91a92fe5c" />
+
+## Model Parameters
+**Encoder** (ResNet-based):
+* Frozen: All pre-trained ResNet convolutional layers.
+* Learnable: The classification linear layer and all Batch Normalization parameters.
+**Decoder** (LSTM-based):
+  * Learnable: All embedding (linear) layer parameters and LSTM cell parameters.
 
 ## Training
 Training is done in $10$ epochs using gradient descent and Adam optimizer with a learning rate $10^{−3}$. The batch size was

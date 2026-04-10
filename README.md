@@ -53,6 +53,7 @@ This work uses the architecture described in the paper: [**Show and Tell: A Neur
 **Encoder** (ResNet-based):
 * Frozen: All pre-trained ResNet convolutional layers.
 * Learnable: The classification linear layer and all Batch Normalization parameters.
+
 **Decoder** (LSTM-based):
   * Learnable: All embedding (linear) layer parameters and LSTM cell parameters.
 
